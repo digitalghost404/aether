@@ -85,7 +85,6 @@ def compute_phase(now: datetime, sun: SunTimes) -> str:
     dawn_start = sun.sunrise - timedelta(minutes=30)
     dawn_end = sun.sunrise + timedelta(minutes=30)
     morning_end = sun.solar_noon - timedelta(hours=1)
-    midday_end = sun.solar_noon + timedelta(hours=2)
     golden_start = sun.sunset - timedelta(hours=1, minutes=30)
     evening_end = sun.sunset + timedelta(hours=1, minutes=30)
 
@@ -93,7 +92,7 @@ def compute_phase(now: datetime, sun: SunTimes) -> str:
         return "dawn"
     elif dawn_end <= now < morning_end:
         return "morning"
-    elif morning_end <= now < midday_end:
+    elif morning_end <= now < golden_start:
         return "midday"
     elif golden_start <= now < sun.sunset:
         return "golden_hour"

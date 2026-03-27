@@ -42,6 +42,12 @@ def test_midday_phase():
     assert compute_phase(t, SUN) == "midday"
 
 
+def test_afternoon_is_midday():
+    """3:28 PM should be midday, not night (gap between midday_end and golden_start)."""
+    t = datetime(2026, 3, 27, 15, 28)
+    assert compute_phase(t, SUN) == "midday"
+
+
 def test_golden_hour_phase():
     t = datetime(2026, 3, 27, 18, 0, )
     assert compute_phase(t, SUN) == "golden_hour"

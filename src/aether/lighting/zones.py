@@ -16,6 +16,8 @@ class ZoneManager:
         return self._current[zone]
 
     def set_zone(self, zone: str, state: ColorState) -> None:
+        if self._current[zone] == state:
+            return  # Skip duplicate — avoid hammering Govee API
         self._current[zone] = state
         self._adapter.publish_zone(zone, state.to_dict())
 

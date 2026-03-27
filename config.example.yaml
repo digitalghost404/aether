@@ -17,7 +17,7 @@ mqtt:
   topic_prefix: aether
 
 circadian:
-  update_interval_sec: 1         # Steady-state tick rate (seconds)
+  update_interval_sec: 30        # Steady-state tick rate (seconds)
   ramp_interval_ms: 100          # Tick rate during ramps (10/sec)
   return_ramp_sec: 8             # Compressed sunrise duration on return
   sunrise_offset_min: 0          # Shift sunrise ± minutes

@@ -1,0 +1,15 @@
+[Unit]
+Description=Aether - Living Room Daemon
+After=mosquitto.service
+Wants=mosquitto.service
+
+[Service]
+Type=simple
+ExecStart=%h/projects/aether/.venv/bin/python -m aether run
+WorkingDirectory=%h/projects/aether
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

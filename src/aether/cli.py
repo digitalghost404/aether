@@ -138,3 +138,93 @@ def status():
     click.echo(f"State:     {results.get('aether/state', 'unknown')}")
     click.echo(f"Human:     {results.get('aether/presence/human', 'unknown')}")
     click.echo(f"Last seen: {results.get('aether/presence/last_seen', 'unknown')}")
+
+
+@cli.command()
+@click.option("--config", "config_path", type=click.Path(), default=None, help="Config file path")
+def discover(config_path):
+    """Discover Govee devices and map them to zones."""
+    import json
+    import time
+    from pathlib import Path
+    import paho.mqtt.client as paho_mqtt
+    import yaml
+
+    path = Path(config_path) if config_path else None
+    config = load_config(path)
+    config_file_path = path or (Path.home() / ".config" / "aether" / "config.yaml")
+
+    devices = {}
+
+    def on_connect(client, userdata, flags, rc, properties=None):
+        client.subscribe("homeassistant/light/govee2mqtt/#")
+
+    def on_message(client, userdata, msg):
+        try:
+            payload = json.loads(msg.payload.decode())
+            if "name" in payload and "unique_id" in payload:
+                dev_id = payload["unique_id"]
+                devices[dev_id] = {
+                    "name": payload.get("name", "Unknown"),
+                    "id": dev_id,
+                    "topic": msg.topic,
+                }
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+    client = paho_mqtt.Client(paho_mqtt.CallbackAPIVersion.VERSION2)
+    client.on_connect = on_connect
+    client.on_message = on_message
+
+    try:
+        client.connect(config.mqtt.broker, config.mqtt.port)
+    except Exception as e:
+        click.echo(f"Cannot connect to MQTT: {e}", err=True)
+        sys.exit(1)
+
+    click.echo("Scanning for Govee devices via govee2mqtt (5 seconds)...")
+    client.loop_start()
+    time.sleep(5)
+    client.loop_stop()
+
+    if not devices:
+        click.echo("No Govee devices found. Is govee2mqtt running?")
+        sys.exit(1)
+
+    dev_list = list(devices.values())
+    click.echo(f"\nFound {len(dev_list)} Govee devices:")
+    for i, dev in enumerate(dev_list, 1):
+        click.echo(f"  {i}. {dev['name']} ({dev['id']})")
+
+    zone_names = ["wall_left", "wall_right", "monitor", "floor", "bedroom"]
+    zone_map = {}
+
+    click.echo("\nMap devices to zones (enter number, or 0 to skip):")
+    for zone in zone_names:
+        while True:
+            choice = click.prompt(f"  {zone}", type=int, default=0)
+            if choice == 0:
+                break
+            if 1 <= choice <= len(dev_list):
+                zone_map[zone] = dev_list[choice - 1]["id"]
+                break
+            click.echo(f"  Invalid choice. Enter 1-{len(dev_list)} or 0 to skip.")
+
+    # Write back to config
+    with open(config_file_path) as f:
+        raw = yaml.safe_load(f) or {}
+
+    if "zones" not in raw:
+        raw["zones"] = {}
+    for zone, dev_id in zone_map.items():
+        if zone not in raw["zones"]:
+            raw["zones"][zone] = {}
+        raw["zones"][zone]["govee_device"] = dev_id
+
+    with open(config_file_path, "w") as f:
+        yaml.dump(raw, f, default_flow_style=False)
+
+    click.echo(f"\nConfig updated at {config_file_path}")
+    click.echo("Mapped zones:")
+    for zone, dev_id in zone_map.items():
+        click.echo(f"  {zone} → {dev_id}")

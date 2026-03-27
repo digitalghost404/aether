@@ -69,6 +69,7 @@ async def _run_daemon(config):
     original_update = presence.tracker.update
 
     def update_with_mqtt(human_detected: bool, now: float | None = None):
+        nonlocal alert_task
         adapter.publish_presence(human_detected)
 
         if human_detected and state_machine.state == State.AWAY:

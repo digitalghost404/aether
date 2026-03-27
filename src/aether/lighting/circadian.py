@@ -140,6 +140,10 @@ class CircadianEngine:
 
     def on_state_change(self, new_state: State) -> None:
         self._state = new_state
+        # Immediately apply lighting for new state (don't wait for next tick)
+        if new_state == State.AWAY:
+            nightlight = self._palettes.get("nightlight", ColorState(180, 140, 60, 5))
+            self._zones.set_all(nightlight)
 
     async def run_return_ramp(self) -> None:
         if self._sun is None:
@@ -151,13 +155,18 @@ class CircadianEngine:
         phase = compute_phase(now, self._sun)
         target = phase_color(phase, self._palettes)
 
+        # Use fewer steps with longer intervals for Platform API
+        # 8 steps over 8 seconds = 1 step/sec × 5 devices = 40 API calls total
+        ramp_steps = 8
+        step_interval = self._config.circadian.return_ramp_sec / ramp_steps
+
         for step in generate_ramp(
             nightlight, target,
             duration_sec=self._config.circadian.return_ramp_sec,
-            interval_ms=self._config.circadian.ramp_interval_ms,
+            interval_ms=int(step_interval * 1000),
         ):
             self._zones.set_all(step)
-            await asyncio.sleep(self._config.circadian.ramp_interval_ms / 1000.0)
+            await asyncio.sleep(step_interval)
 
         self._ramping = False
 

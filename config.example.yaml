@@ -1,0 +1,63 @@
+# Aether Configuration
+# Copy to ~/.config/aether/config.yaml and edit
+
+location:
+  latitude: null        # Required — your latitude for sunrise/sunset
+  longitude: null       # Required — your longitude for sunrise/sunset
+
+presence:
+  camera_index: 0                # /dev/video index
+  absence_timeout_sec: 10        # Seconds with no human before AWAY
+  detection_confidence: 0.5      # MediaPipe min detection confidence (0.0-1.0)
+  frame_interval_ms: 333         # ~3fps — increase for lower CPU usage
+
+mqtt:
+  broker: localhost
+  port: 1883
+  topic_prefix: aether
+
+circadian:
+  update_interval_sec: 1         # Steady-state tick rate (seconds)
+  ramp_interval_ms: 100          # Tick rate during ramps (10/sec)
+  return_ramp_sec: 8             # Compressed sunrise duration on return
+  sunrise_offset_min: 0          # Shift sunrise ± minutes
+  sunset_offset_min: 0           # Shift sunset ± minutes
+  palettes:
+    dawn:
+      color: [255, 160, 50]
+      brightness: 30
+    morning:
+      color: [255, 240, 220]
+      brightness: 80
+    midday:
+      color: [255, 255, 255]
+      brightness: 100
+    golden_hour:
+      color: [255, 180, 60]
+      brightness: 70
+    evening:
+      color: [80, 60, 180]
+      brightness: 40
+    night:
+      color: [30, 20, 80]
+      brightness: 15
+    nightlight:
+      color: [180, 140, 60]
+      brightness: 5
+
+zones:
+  wall_left:
+    govee_device: null
+  wall_right:
+    govee_device: null
+  monitor:
+    govee_device: null
+  floor:
+    govee_device: null
+  bedroom:
+    govee_device: null
+
+alerts:
+  sentry:
+    floor_flash_color: [255, 180, 0]
+    floor_flash_count: 3

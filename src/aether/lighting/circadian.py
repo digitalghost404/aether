@@ -127,7 +127,7 @@ class CircadianEngine:
         self._state = State.PRESENT
 
     async def _ensure_sun_times(self) -> None:
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today = datetime.now().strftime("%Y-%m-%d")
         if self._last_fetch_date == today and self._sun is not None:
             return
 
@@ -147,7 +147,7 @@ class CircadianEngine:
 
         self._ramping = True
         nightlight = self._palettes.get("nightlight", ColorState(180, 140, 60, 5))
-        now = datetime.now(timezone.utc)
+        now = datetime.now()
         phase = compute_phase(now, self._sun)
         target = phase_color(phase, self._palettes)
 

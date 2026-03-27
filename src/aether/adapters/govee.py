@@ -15,8 +15,27 @@ class GoveeAdapter:
         zone_cfg = self._zones.get(zone)
         if zone_cfg is None or zone_cfg.govee_device is None:
             return
-        topic = f"{self._prefix}/light/zone/{zone}"
-        self._mqtt.publish(topic, json.dumps(color), retain=True)
+
+        device_id = zone_cfg.govee_device
+
+        # Publish to Aether's own topic (for status/logging)
+        self._mqtt.publish(
+            f"{self._prefix}/light/zone/{zone}",
+            json.dumps(color),
+            retain=True,
+        )
+
+        # Publish to govee2mqtt's command topic
+        brightness = color.get("brightness", 100)
+        govee_payload = {
+            "state": "ON" if brightness > 0 else "OFF",
+            "color": {"r": color["r"], "g": color["g"], "b": color["b"]},
+            "brightness": brightness,
+        }
+        self._mqtt.publish(
+            f"gv2mqtt/light/{device_id}/command",
+            json.dumps(govee_payload),
+        )
 
     def publish_state(self, state: str) -> None:
         self._mqtt.publish(f"{self._prefix}/state", json.dumps(state), retain=True)

@@ -3,30 +3,33 @@ from unittest.mock import MagicMock
 from aether.adapters.govee import GoveeAdapter
 
 
-def test_publish_zone_formats_topic():
+def test_publish_zone_publishes_to_aether_and_govee():
     mqtt = MagicMock()
     zones_config = {
-        "floor": MagicMock(govee_device="AA:BB:CC:DD:EE:FF"),
+        "floor": MagicMock(govee_device="AABBCCDDEEFF"),
     }
     adapter = GoveeAdapter(mqtt, zones_config, topic_prefix="aether")
     adapter.publish_zone("floor", {"r": 255, "g": 180, "b": 0, "brightness": 100})
-    mqtt.publish.assert_called_once()
-    call_args = mqtt.publish.call_args
-    assert call_args[0][0] == "aether/light/zone/floor"
+    assert mqtt.publish.call_count == 2
+    # First call: aether status topic
+    aether_call = mqtt.publish.call_args_list[0]
+    assert aether_call[0][0] == "aether/light/zone/floor"
+    # Second call: govee2mqtt command topic
+    govee_call = mqtt.publish.call_args_list[1]
+    assert govee_call[0][0] == "gv2mqtt/light/AABBCCDDEEFF/command"
 
 
-def test_publish_zone_payload_is_json():
+def test_publish_zone_govee_payload_format():
     mqtt = MagicMock()
     zones_config = {
-        "wall_left": MagicMock(govee_device="11:22:33:44:55:66"),
+        "wall_left": MagicMock(govee_device="1122334455"),
     }
     adapter = GoveeAdapter(mqtt, zones_config, topic_prefix="aether")
     adapter.publish_zone("wall_left", {"r": 80, "g": 60, "b": 180, "brightness": 40})
-    call_args = mqtt.publish.call_args
-    payload = json.loads(call_args[0][1])
-    assert payload["r"] == 80
-    assert payload["g"] == 60
-    assert payload["b"] == 180
+    govee_call = mqtt.publish.call_args_list[1]
+    payload = json.loads(govee_call[0][1])
+    assert payload["state"] == "ON"
+    assert payload["color"] == {"r": 80, "g": 60, "b": 180}
     assert payload["brightness"] == 40
 
 

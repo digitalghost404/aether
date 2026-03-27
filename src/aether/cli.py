@@ -145,56 +145,45 @@ def status():
 def discover(config_path):
     """Discover Govee devices and map them to zones."""
     import json
-    import time
     from pathlib import Path
-    import paho.mqtt.client as paho_mqtt
+    import httpx
     import yaml
 
     path = Path(config_path) if config_path else None
     config = load_config(path)
     config_file_path = path or (Path.home() / ".config" / "aether" / "config.yaml")
 
-    devices = {}
-
-    def on_connect(client, userdata, flags, rc, properties=None):
-        client.subscribe("homeassistant/light/govee2mqtt/#")
-
-    def on_message(client, userdata, msg):
-        try:
-            payload = json.loads(msg.payload.decode())
-            if "name" in payload and "unique_id" in payload:
-                dev_id = payload["unique_id"]
-                devices[dev_id] = {
-                    "name": payload.get("name", "Unknown"),
-                    "id": dev_id,
-                    "topic": msg.topic,
-                }
-        except (json.JSONDecodeError, KeyError):
-            pass
-
-    client = paho_mqtt.Client(paho_mqtt.CallbackAPIVersion.VERSION2)
-    client.on_connect = on_connect
-    client.on_message = on_message
+    click.echo("Querying govee2mqtt HTTP API for devices...")
 
     try:
-        client.connect(config.mqtt.broker, config.mqtt.port)
+        resp = httpx.get("http://localhost:8056/api/devices", timeout=5)
+        resp.raise_for_status()
+        all_devices = resp.json()
     except Exception as e:
-        click.echo(f"Cannot connect to MQTT: {e}", err=True)
+        click.echo(f"Cannot connect to govee2mqtt API: {e}", err=True)
+        click.echo("Is govee2mqtt running? (docker ps | grep govee2mqtt)", err=True)
         sys.exit(1)
 
-    click.echo("Scanning for Govee devices via govee2mqtt (5 seconds)...")
-    client.loop_start()
-    time.sleep(5)
-    client.loop_stop()
+    # Filter to real light devices (skip BaseGroup and other non-lights)
+    devices = [
+        d for d in all_devices
+        if d.get("sku", "").startswith("H") and d.get("name")
+    ]
 
     if not devices:
-        click.echo("No Govee devices found. Is govee2mqtt running?")
+        click.echo("No Govee light devices found.")
         sys.exit(1)
 
-    dev_list = list(devices.values())
-    click.echo(f"\nFound {len(dev_list)} Govee devices:")
-    for i, dev in enumerate(dev_list, 1):
-        click.echo(f"  {i}. {dev['name']} ({dev['id']})")
+    click.echo(f"\nFound {len(devices)} Govee devices:")
+    for i, dev in enumerate(devices, 1):
+        state = dev.get("state", {})
+        online = "online" if state and state.get("online") else "offline"
+        on_off = "ON" if state and state.get("on") else "OFF"
+        click.echo(f"  {i}. {dev['name']} ({dev['sku']}) [{online}, {on_off}]")
+
+    # govee2mqtt uses colons in device IDs, but MQTT topics use them without colons
+    def mqtt_device_id(raw_id: str) -> str:
+        return raw_id.replace(":", "")
 
     zone_names = ["wall_left", "wall_right", "monitor", "floor", "bedroom"]
     zone_map = {}
@@ -205,10 +194,10 @@ def discover(config_path):
             choice = click.prompt(f"  {zone}", type=int, default=0)
             if choice == 0:
                 break
-            if 1 <= choice <= len(dev_list):
-                zone_map[zone] = dev_list[choice - 1]["id"]
+            if 1 <= choice <= len(devices):
+                zone_map[zone] = mqtt_device_id(devices[choice - 1]["id"])
                 break
-            click.echo(f"  Invalid choice. Enter 1-{len(dev_list)} or 0 to skip.")
+            click.echo(f"  Invalid choice. Enter 1-{len(devices)} or 0 to skip.")
 
     # Write back to config
     with open(config_file_path) as f:

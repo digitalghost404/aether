@@ -22,38 +22,38 @@ PALETTES = {
 
 # Sunrise at 6:30, sunset at 19:00 (7 PM)
 SUN = SunTimes(
-    sunrise=datetime(2026, 3, 27, 6, 30, tzinfo=timezone.utc),
-    sunset=datetime(2026, 3, 27, 19, 0, tzinfo=timezone.utc),
+    sunrise=datetime(2026, 3, 27, 6, 30, ),
+    sunset=datetime(2026, 3, 27, 19, 0, ),
 )
 
 
 def test_dawn_phase():
-    t = datetime(2026, 3, 27, 6, 15, tzinfo=timezone.utc)
+    t = datetime(2026, 3, 27, 6, 15, )
     assert compute_phase(t, SUN) == "dawn"
 
 
 def test_morning_phase():
-    t = datetime(2026, 3, 27, 8, 0, tzinfo=timezone.utc)
+    t = datetime(2026, 3, 27, 8, 0, )
     assert compute_phase(t, SUN) == "morning"
 
 
 def test_midday_phase():
-    t = datetime(2026, 3, 27, 12, 45, tzinfo=timezone.utc)
+    t = datetime(2026, 3, 27, 12, 45, )
     assert compute_phase(t, SUN) == "midday"
 
 
 def test_golden_hour_phase():
-    t = datetime(2026, 3, 27, 18, 0, tzinfo=timezone.utc)
+    t = datetime(2026, 3, 27, 18, 0, )
     assert compute_phase(t, SUN) == "golden_hour"
 
 
 def test_evening_phase():
-    t = datetime(2026, 3, 27, 19, 30, tzinfo=timezone.utc)
+    t = datetime(2026, 3, 27, 19, 30, )
     assert compute_phase(t, SUN) == "evening"
 
 
 def test_night_phase():
-    t = datetime(2026, 3, 27, 22, 0, tzinfo=timezone.utc)
+    t = datetime(2026, 3, 27, 22, 0, )
     assert compute_phase(t, SUN) == "night"
 
 

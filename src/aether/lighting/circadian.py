@@ -29,7 +29,7 @@ CACHE_PATH = Path.home() / ".cache" / "aether" / "sun_times.json"
 
 
 def get_default_sun_times() -> SunTimes:
-    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     return SunTimes(
         sunrise=today.replace(hour=6, minute=0),
         sunset=today.replace(hour=19, minute=0),
@@ -174,7 +174,7 @@ class CircadianEngine:
                 nightlight = self._palettes.get("nightlight", ColorState(180, 140, 60, 5))
                 self._zones.set_all(nightlight)
             elif self._sun is not None:
-                now = datetime.now(timezone.utc)
+                now = datetime.now()
                 phase = compute_phase(now, self._sun)
                 target = phase_color(phase, self._palettes)
                 self._zones.set_all(target)

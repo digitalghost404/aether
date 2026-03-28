@@ -16,6 +16,8 @@ dependencies = [
     "httpx",
     "click",
     "librosa",
+    "faster-whisper",
+    "openwakeword",
 ]
 
 [project.optional-dependencies]

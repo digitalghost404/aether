@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from aether.config import AetherConfig, load_config
+from aether.config import AetherConfig, load_config, OpenRGBConfig, ZoneConfig, FocusConfig
 
 
 def test_load_example_config(tmp_path):
@@ -45,3 +45,45 @@ def test_default_zones():
     example = Path(__file__).parent.parent / "config.example.yaml"
     config = load_config(example)
     assert set(config.zones.keys()) == {"wall_left", "wall_right", "monitor", "floor", "bedroom"}
+
+
+def test_openrgb_config_defaults():
+    cfg = OpenRGBConfig()
+    assert cfg.enabled is True
+    assert cfg.host == "localhost"
+    assert cfg.port == 6820
+    assert cfg.retry_attempts == 3
+    assert cfg.retry_delay_sec == 2.0
+
+
+def test_zone_config_openrgb_devices():
+    cfg = ZoneConfig(openrgb_devices=["SteelSeries Apex 3 TKL", "SteelSeries Rival 600"])
+    assert cfg.openrgb_devices == ["SteelSeries Apex 3 TKL", "SteelSeries Rival 600"]
+    assert cfg.govee_device is None
+
+
+def test_zone_config_govee_device_no_openrgb():
+    cfg = ZoneConfig(govee_device="AABBCCDDEEFF")
+    assert cfg.govee_device == "AABBCCDDEEFF"
+    assert cfg.openrgb_devices is None
+
+
+def test_focus_config_desk_tower_defaults():
+    cfg = FocusConfig()
+    assert cfg.desk_color == [255, 223, 191]
+    assert cfg.desk_brightness == 80
+    assert cfg.tower_brightness == 10
+
+
+def test_party_config_peripheral_defaults():
+    from aether.config import PartyConfig
+    cfg = PartyConfig()
+    assert cfg.tower_beat_sync is True
+    assert cfg.desk_accent is True
+
+
+def test_aether_config_has_openrgb():
+    from aether.config import AetherConfig, OpenRGBConfig
+    cfg = AetherConfig()
+    assert isinstance(cfg.openrgb, OpenRGBConfig)
+    assert cfg.openrgb.enabled is True

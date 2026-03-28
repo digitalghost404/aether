@@ -54,6 +54,7 @@ class CircadianConfig(BaseModel):
 
 class ZoneConfig(BaseModel):
     govee_device: str | None = None
+    openrgb_devices: list[str] | None = None
 
 
 class SentryAlertConfig(BaseModel):
@@ -75,6 +76,9 @@ class FocusConfig(BaseModel):
     rope_dim_brightness: int = 10
     break_color: list[int] = [180, 230, 180]
     break_brightness: int = 10
+    desk_color: list[int] = [255, 223, 191]
+    desk_brightness: int = 80
+    tower_brightness: int = 10
 
 
 class PartyConfig(BaseModel):
@@ -89,6 +93,8 @@ class PartyConfig(BaseModel):
         [50, 220, 220],
         [255, 80, 50],
     ]
+    tower_beat_sync: bool = True
+    desk_accent: bool = True
 
 
 class SleepConfig(BaseModel):
@@ -122,6 +128,14 @@ class GestureConfig(BaseModel):
     feedback_flash: bool = True
 
 
+class OpenRGBConfig(BaseModel):
+    enabled: bool = True
+    host: str = "localhost"
+    port: int = 6820
+    retry_attempts: int = 3
+    retry_delay_sec: float = 2.0
+
+
 class AetherConfig(BaseModel):
     location: LocationConfig = LocationConfig()
     presence: PresenceConfig = PresenceConfig()
@@ -135,6 +149,7 @@ class AetherConfig(BaseModel):
     mixer: MixerConfig = MixerConfig()
     vox: VoxConfig = VoxConfig()
     gestures: GestureConfig = GestureConfig()
+    openrgb: OpenRGBConfig = OpenRGBConfig()
 
 
 def load_config(path: Path | None = None) -> AetherConfig:

@@ -101,12 +101,18 @@ class DJMode:
         color = ColorState(r=r, g=g, b=b, brightness=brightness)
         for zone in ("wall_left", "wall_right", "monitor", "bedroom"):
             self._mixer.submit("party", zone, color, priority=1)
+        if self._config.desk_accent:
+            self._mixer.submit("party", "desk", color, priority=1)
+        if self._config.tower_beat_sync:
+            self._mixer.submit("party", "tower", color, priority=1)
         self._mixer.resolve()
 
     def _apply_accent(self, brightness: int) -> None:
         r, g, b = self._current_base_color
         accent = ColorState(r=r, g=g, b=b, brightness=brightness)
         self._mixer.submit("party", self._config.accent_zone, accent, priority=1)
+        if self._config.tower_beat_sync:
+            self._mixer.submit("party", "tower", accent, priority=1)
         self._mixer.resolve()
 
     async def run(self) -> None:

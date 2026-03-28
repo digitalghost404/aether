@@ -96,3 +96,53 @@ def test_accent_brightness_toggle():
     br = mode._toggle_accent()
     assert br == 40
     assert mode._accent_high is False
+
+
+def test_apply_base_color_includes_tower():
+    cfg = PartyConfig(
+        palette=[[180, 50, 255]],
+        tower_beat_sync=True,
+        desk_accent=True,
+    )
+    mx = FakeMixer()
+    mode = DJMode.__new__(DJMode)
+    mode._config = cfg
+    mode._mixer = mx
+    mode._apply_base_color(180, 50, 255, brightness=80)
+    tower_subs = [(s, z, c, p) for s, z, c, p in mx.submissions if z == "tower"]
+    assert len(tower_subs) == 1
+    assert tower_subs[0][2] == ColorState(r=180, g=50, b=255, brightness=80)
+
+
+def test_apply_base_color_includes_desk_accent():
+    cfg = PartyConfig(
+        palette=[[180, 50, 255]],
+        tower_beat_sync=True,
+        desk_accent=True,
+    )
+    mx = FakeMixer()
+    mode = DJMode.__new__(DJMode)
+    mode._config = cfg
+    mode._mixer = mx
+    mode._apply_base_color(180, 50, 255, brightness=80)
+    desk_subs = [(s, z, c, p) for s, z, c, p in mx.submissions if z == "desk"]
+    assert len(desk_subs) == 1
+    assert desk_subs[0][2] == ColorState(r=180, g=50, b=255, brightness=80)
+
+
+def test_apply_accent_syncs_tower_when_enabled():
+    cfg = PartyConfig(
+        accent_zone="floor",
+        accent_brightness_high=100,
+        palette=[[255, 0, 0]],
+        tower_beat_sync=True,
+    )
+    mx = FakeMixer()
+    mode = DJMode.__new__(DJMode)
+    mode._config = cfg
+    mode._mixer = mx
+    mode._current_base_color = (255, 0, 0)
+    mode._apply_accent(100)
+    tower_subs = [(s, z, c, p) for s, z, c, p in mx.submissions if z == "tower"]
+    assert len(tower_subs) == 1
+    assert tower_subs[0][2].brightness == 100

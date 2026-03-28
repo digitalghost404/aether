@@ -33,6 +33,8 @@ class PresenceTracker:
             if self._sm.state == State.AWAY:
                 self._sm.handle_event(Event.HUMAN_DETECTED)
         else:
+            if self._sm.state in (State.FOCUS, State.PARTY):
+                return
             elapsed = now - self._last_human_seen
             if elapsed >= self._timeout and not self._absence_fired:
                 self._absence_fired = True

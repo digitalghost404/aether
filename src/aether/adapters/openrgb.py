@@ -29,7 +29,7 @@ class OpenRGBAdapter:
         mqtt_client,
         zones_config: dict,
         host: str = "localhost",
-        port: int = 6820,
+        port: int = 6742,
         topic_prefix: str = "aether",
         retry_attempts: int = 3,
         retry_delay_sec: float = 2.0,

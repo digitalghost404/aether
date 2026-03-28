@@ -51,7 +51,7 @@ def test_openrgb_config_defaults():
     cfg = OpenRGBConfig()
     assert cfg.enabled is False
     assert cfg.host == "localhost"
-    assert cfg.port == 6820
+    assert cfg.port == 6742
     assert cfg.retry_attempts == 3
     assert cfg.retry_delay_sec == 2.0
 

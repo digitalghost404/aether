@@ -129,4 +129,4 @@ gestures:
 openrgb:
   enabled: false                     # set to true after running `openrgb --list-devices`
   host: localhost
-  port: 6820
+  port: 6742

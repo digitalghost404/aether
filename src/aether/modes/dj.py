@@ -13,7 +13,7 @@ from aether.lighting.ramp import ColorState
 
 
 SAMPLE_RATE = 22050
-CHUNK_DURATION = 1.0
+CHUNK_DURATION = 0.05  # 50ms chunks for beat-resolution detection
 CHUNK_SAMPLES = int(SAMPLE_RATE * CHUNK_DURATION)
 
 
@@ -34,7 +34,12 @@ class BeatAnalyzer:
     def feed(self, samples: np.ndarray) -> AnalysisResult:
         import librosa
 
-        energy = float(np.sqrt(np.mean(samples ** 2)))
+        # Filter out NaN/Inf from PipeWire stream (first chunk often has garbage)
+        clean = samples[np.isfinite(samples)]
+        if len(clean) == 0:
+            return AnalysisResult(energy=0.0, is_onset=False, bpm=None)
+
+        energy = float(np.sqrt(np.mean(clean ** 2)))
         self._energy_history.append(energy)
         if len(self._energy_history) > 30:
             self._energy_history.pop(0)
@@ -42,7 +47,7 @@ class BeatAnalyzer:
         avg = np.mean(self._energy_history) if self._energy_history else 0.0
         is_onset = energy > avg * self._onset_threshold and energy > 0.01
 
-        self._audio_buffer.append(samples)
+        self._audio_buffer.append(clean)
         bpm = None
         total_samples = sum(len(b) for b in self._audio_buffer)
         if total_samples >= self._sr * 4:

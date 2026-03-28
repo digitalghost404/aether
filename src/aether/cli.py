@@ -41,6 +41,7 @@ def run(config_path):
 
 
 async def _run_daemon(config):
+    loop = asyncio.get_running_loop()
     mqtt = MqttClient(broker=config.mqtt.broker, port=config.mqtt.port)
     adapter = GoveeAdapter(mqtt, config.zones, topic_prefix=config.mqtt.topic_prefix)
     zones = ZoneManager(adapter)
@@ -94,6 +95,9 @@ async def _run_daemon(config):
         circadian.on_state_change(t.to_state)
 
         if t.to_state == State.PRESENT and t.from_state == State.AWAY:
+            # Cancel any in-flight sentry alert so it doesn't race the ramp
+            if alert_task and not alert_task.done():
+                alert_task.cancel()
             asyncio.ensure_future(circadian.run_return_ramp())
 
         if t.to_state == State.PRESENT and t.from_state in (State.FOCUS, State.PARTY, State.SLEEP):
@@ -117,7 +121,7 @@ async def _run_daemon(config):
 
     state_machine._on_transition = handle_transition
 
-    def _handle_mqtt_command(topic: str, payload: str):
+    def _handle_mqtt_command_inner(topic: str, payload: str):
         payload = payload.strip().strip('"')
         if topic == f"{config.mqtt.topic_prefix}/mode/set":
             if payload == "focus" and state_machine.state == State.PRESENT:
@@ -144,6 +148,9 @@ async def _run_daemon(config):
                 zones.flush_current()
                 mqtt.publish(f"{config.mqtt.topic_prefix}/paused", json.dumps(False), retain=True)
                 print("[aether] Resumed", file=sys.stderr)
+
+    def _handle_mqtt_command(topic: str, payload: str):
+        loop.call_soon_threadsafe(_handle_mqtt_command_inner, topic, payload)
 
     mqtt.on_message = _handle_mqtt_command
     mqtt.subscribe(f"{config.mqtt.topic_prefix}/mode/set")

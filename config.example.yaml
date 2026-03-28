@@ -9,7 +9,7 @@ presence:
   camera_index: 0                # /dev/video index
   absence_timeout_sec: 10        # Seconds with no human before AWAY
   detection_confidence: 0.5      # MediaPipe min detection confidence (0.0-1.0)
-  frame_interval_ms: 333         # ~3fps — increase for lower CPU usage
+  frame_interval_ms: 100         # ~10fps — responsive gestures at ~6% CPU
 
 mqtt:
   broker: localhost
@@ -89,3 +89,25 @@ sleep:
   total_duration_min: 5
   bedroom_final_color: [200, 100, 30]
   bedroom_final_brightness: 5
+
+mixer:
+  manual_ttl_sec: 600          # 10 min default for voice/gesture overrides
+  tick_interval_sec: 1         # claim expiry check rate
+
+vox:
+  enabled: true
+  mic_source: "alsa_input.usb-Clip-on_USB_microphone_UM02-00.mono-fallback"
+  wake_word: "hey_jarvis"
+  command_timeout_sec: 5
+  silence_timeout_sec: 1.5
+  whisper_model: "small"
+  ollama_model: "qwen3.5:4b"
+  feedback_flash: true
+
+gestures:
+  enabled: true
+  detection_confidence: 0.5
+  consecutive_frames: 3
+  fist_hold_frames: 9
+  cooldown_sec: 5
+  feedback_flash: true

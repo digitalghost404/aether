@@ -11,7 +11,6 @@ import httpx
 
 from aether.config import AetherConfig, PaletteEntry
 from aether.lighting.ramp import ColorState, generate_ramp
-from aether.lighting.zones import ZoneManager
 from aether.state import State
 
 
@@ -117,9 +116,9 @@ def palettes_from_config(config: AetherConfig) -> dict[str, ColorState]:
 
 
 class CircadianEngine:
-    def __init__(self, config: AetherConfig, zones: ZoneManager):
+    def __init__(self, config: AetherConfig, mixer):
         self._config = config
-        self._zones = zones
+        self._mixer = mixer
         self._palettes = palettes_from_config(config)
         self._sun: SunTimes | None = None
         self._last_fetch_date: str | None = None
@@ -143,7 +142,8 @@ class CircadianEngine:
         # Immediately apply lighting for new state (don't wait for next tick)
         if new_state == State.AWAY:
             nightlight = self._palettes.get("nightlight", ColorState(180, 140, 60, 5))
-            self._zones.set_all(nightlight)
+            self._mixer.submit_all("circadian", nightlight, priority=2)
+            self._mixer.resolve()
 
     async def run_return_ramp(self) -> None:
         if self._sun is None:
@@ -165,7 +165,8 @@ class CircadianEngine:
             duration_sec=self._config.circadian.return_ramp_sec,
             interval_ms=int(step_interval * 1000),
         ):
-            self._zones.set_all(step)
+            self._mixer.submit_all("circadian", step, priority=2)
+            self._mixer.resolve()
             await asyncio.sleep(step_interval)
 
         self._ramping = False
@@ -180,11 +181,11 @@ class CircadianEngine:
 
             if self._state == State.AWAY:
                 nightlight = self._palettes.get("nightlight", ColorState(180, 140, 60, 5))
-                self._zones.set_all(nightlight)
+                self._mixer.submit_all("circadian", nightlight, priority=2)
             elif self._state == State.PRESENT and self._sun is not None:
                 now = datetime.now()
                 phase = compute_phase(now, self._sun)
                 target = phase_color(phase, self._palettes)
-                self._zones.set_all(target)
+                self._mixer.submit_all("circadian", target, priority=2)
 
             await asyncio.sleep(self._config.circadian.update_interval_sec)

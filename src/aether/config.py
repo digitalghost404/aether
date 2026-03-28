@@ -21,7 +21,7 @@ class PresenceConfig(BaseModel):
     camera_index: int = 0
     absence_timeout_sec: int = 10
     detection_confidence: float = 0.5
-    frame_interval_ms: int = 333
+    frame_interval_ms: int = 100
 
 
 class MqttConfig(BaseModel):
@@ -97,6 +97,31 @@ class SleepConfig(BaseModel):
     bedroom_final_brightness: int = 5
 
 
+class MixerConfig(BaseModel):
+    manual_ttl_sec: int = 600
+    tick_interval_sec: int = 1
+
+
+class VoxConfig(BaseModel):
+    enabled: bool = True
+    mic_source: str = "alsa_input.usb-Clip-on_USB_microphone_UM02-00.mono-fallback"
+    wake_word: str = "hey_jarvis"
+    command_timeout_sec: int = 5
+    silence_timeout_sec: float = 1.5
+    whisper_model: str = "small"
+    ollama_model: str = "qwen3.5:4b"
+    feedback_flash: bool = True
+
+
+class GestureConfig(BaseModel):
+    enabled: bool = True
+    detection_confidence: float = 0.5
+    consecutive_frames: int = 3
+    fist_hold_frames: int = 9
+    cooldown_sec: int = 5
+    feedback_flash: bool = True
+
+
 class AetherConfig(BaseModel):
     location: LocationConfig = LocationConfig()
     presence: PresenceConfig = PresenceConfig()
@@ -107,6 +132,9 @@ class AetherConfig(BaseModel):
     focus: FocusConfig = FocusConfig()
     party: PartyConfig = PartyConfig()
     sleep: SleepConfig = SleepConfig()
+    mixer: MixerConfig = MixerConfig()
+    vox: VoxConfig = VoxConfig()
+    gestures: GestureConfig = GestureConfig()
 
 
 def load_config(path: Path | None = None) -> AetherConfig:

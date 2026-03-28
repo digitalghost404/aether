@@ -27,13 +27,13 @@ class SleepMode:
     def __init__(
         self,
         config: SleepConfig,
-        zones,
+        mixer,
         mqtt,
         cancel: asyncio.Event,
         pause: asyncio.Event,
     ):
         self._config = config
-        self._zones = zones
+        self._mixer = mixer
         self._mqtt = mqtt
         self._cancel = cancel
         self._pause = pause
@@ -44,9 +44,15 @@ class SleepMode:
         self._mqtt.publish("aether/sleep/stage", f'"{stage.value}"', retain=True)
 
     async def _fade_zone(self, zone: str, target: ColorState, duration_sec: float) -> bool:
-        start = self._zones.get(zone)
+        claims = self._mixer.get_active_claims()
+        if zone in claims:
+            start = claims[zone].color
+        else:
+            start = ColorState(r=255, g=255, b=255, brightness=100)
+
         if duration_sec <= 0:
-            self._zones.set_zone(zone, target)
+            self._mixer.submit("sleep", zone, target, priority=1)
+            self._mixer.resolve()
             return self._cancel.is_set()
 
         step_count = max(1, int(duration_sec / 12))
@@ -59,10 +65,12 @@ class SleepMode:
                 await asyncio.sleep(0.5)
                 if self._cancel.is_set():
                     return True
-            self._zones.set_zone(zone, step)
+            self._mixer.submit("sleep", zone, step, priority=1)
+            self._mixer.resolve()
             await asyncio.sleep(interval)
 
-        self._zones.set_zone(zone, target)
+        self._mixer.submit("sleep", zone, target, priority=1)
+        self._mixer.resolve()
         return False
 
     async def run(self) -> None:
@@ -130,3 +138,7 @@ class SleepMode:
 
         except Exception as e:
             print(f"[aether] SLEEP error: {e}", file=sys.stderr)
+        finally:
+            if not self.completed:
+                self._mixer.release_all("sleep")
+                self._mixer.resolve()

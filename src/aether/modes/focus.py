@@ -18,12 +18,12 @@ class FocusMode:
     def __init__(
         self,
         config: FocusConfig,
-        zones,
+        mixer,
         cancel: asyncio.Event,
         pause: asyncio.Event,
     ):
         self._config = config
-        self._zones = zones
+        self._mixer = mixer
         self._cancel = cancel
         self._pause = pause
         self.phase = PomodoroPhase.WORK
@@ -53,56 +53,64 @@ class FocusMode:
 
     def _apply_work_lighting(self, progress: float) -> None:
         cfg = self._config
-        self._zones.set_zone(
-            "monitor",
+        self._mixer.submit(
+            "focus", "monitor",
             ColorState(r=cfg.work_color[0], g=cfg.work_color[1], b=cfg.work_color[2], brightness=cfg.work_brightness),
+            priority=1,
         )
         rope_br = self._rope_brightness(progress)
         rope_color = ColorState(r=180, g=140, b=60, brightness=rope_br)
-        self._zones.set_zone("wall_left", rope_color)
-        self._zones.set_zone("wall_right", rope_color)
+        self._mixer.submit("focus", "wall_left", rope_color, priority=1)
+        self._mixer.submit("focus", "wall_right", rope_color, priority=1)
         off = ColorState(r=0, g=0, b=0, brightness=0)
-        self._zones.set_zone("floor", off)
-        self._zones.set_zone("bedroom", off)
+        self._mixer.submit("focus", "floor", off, priority=1)
+        self._mixer.submit("focus", "bedroom", off, priority=1)
+        self._mixer.resolve()
 
     def _apply_break_lighting(self) -> None:
         cfg = self._config
-        self._zones.set_zone(
-            "monitor",
+        self._mixer.submit(
+            "focus", "monitor",
             ColorState(r=cfg.work_color[0], g=cfg.work_color[1], b=cfg.work_color[2], brightness=60),
+            priority=1,
         )
         break_color = ColorState(
             r=cfg.break_color[0], g=cfg.break_color[1], b=cfg.break_color[2],
             brightness=cfg.break_brightness,
         )
-        self._zones.set_zone("wall_left", break_color)
-        self._zones.set_zone("wall_right", break_color)
+        self._mixer.submit("focus", "wall_left", break_color, priority=1)
+        self._mixer.submit("focus", "wall_right", break_color, priority=1)
         off = ColorState(r=0, g=0, b=0, brightness=0)
-        self._zones.set_zone("floor", off)
-        self._zones.set_zone("bedroom", off)
+        self._mixer.submit("focus", "floor", off, priority=1)
+        self._mixer.submit("focus", "bedroom", off, priority=1)
+        self._mixer.resolve()
 
     def _apply_long_break_lighting(self) -> None:
         cfg = self._config
-        self._zones.set_zone(
-            "monitor",
+        self._mixer.submit(
+            "focus", "monitor",
             ColorState(r=cfg.work_color[0], g=cfg.work_color[1], b=cfg.work_color[2], brightness=60),
+            priority=1,
         )
         amber = ColorState(r=255, g=180, b=60, brightness=70)
-        self._zones.set_zone("wall_left", amber)
-        self._zones.set_zone("wall_right", amber)
+        self._mixer.submit("focus", "wall_left", amber, priority=1)
+        self._mixer.submit("focus", "wall_right", amber, priority=1)
         off = ColorState(r=0, g=0, b=0, brightness=0)
-        self._zones.set_zone("floor", off)
-        self._zones.set_zone("bedroom", off)
+        self._mixer.submit("focus", "floor", off, priority=1)
+        self._mixer.submit("focus", "bedroom", off, priority=1)
+        self._mixer.resolve()
 
     async def _flash_ropes(self, count: int = 2) -> None:
         bright = ColorState(r=255, g=255, b=255, brightness=100)
         dim = ColorState(r=180, g=140, b=60, brightness=self._config.rope_dim_brightness)
         for _ in range(count):
-            self._zones.set_zone("wall_left", bright)
-            self._zones.set_zone("wall_right", bright)
+            self._mixer.submit("focus", "wall_left", bright, priority=1)
+            self._mixer.submit("focus", "wall_right", bright, priority=1)
+            self._mixer.resolve()
             await asyncio.sleep(0.3)
-            self._zones.set_zone("wall_left", dim)
-            self._zones.set_zone("wall_right", dim)
+            self._mixer.submit("focus", "wall_left", dim, priority=1)
+            self._mixer.submit("focus", "wall_right", dim, priority=1)
+            self._mixer.resolve()
             await asyncio.sleep(0.3)
 
     async def _wait_with_pause(self, seconds: float) -> bool:
@@ -184,4 +192,6 @@ class FocusMode:
                     if done:
                         return
         finally:
+            self._mixer.release_all("focus")
+            self._mixer.resolve()
             print("[aether] FOCUS: ended", file=sys.stderr)

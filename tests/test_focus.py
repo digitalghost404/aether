@@ -6,25 +6,36 @@ from aether.modes.focus import FocusMode, PomodoroPhase
 from aether.config import FocusConfig
 
 
-class FakeZoneManager:
+class FakeMixer:
     def __init__(self):
-        self.calls: list[tuple[str, ColorState]] = []
-        self.paused = False
+        self.submissions: list[tuple[str, str, ColorState, int]] = []
 
-    def set_zone(self, zone: str, state: ColorState) -> None:
-        self.calls.append((zone, state))
+    def submit(self, source: str, zone: str, color: ColorState, priority: int, ttl_sec: float | None = None) -> None:
+        self.submissions.append((source, zone, color, priority))
 
-    def set_all(self, state: ColorState) -> None:
+    def submit_all(self, source: str, color: ColorState, priority: int, ttl_sec: float | None = None) -> None:
         for zone in ("wall_left", "wall_right", "monitor", "floor", "bedroom"):
-            self.set_zone(zone, state)
+            self.submit(source, zone, color, priority)
+
+    def release(self, source: str, zone: str) -> None:
+        pass
+
+    def release_all(self, source: str) -> None:
+        pass
+
+    def resolve(self) -> None:
+        pass
+
+    def get_active_claims(self):
+        return {}
 
 
-def make_focus(config=None, zones=None):
+def make_focus(config=None, mixer=None):
     cfg = config or FocusConfig(work_min=1, short_break_min=1, long_break_min=1, cycles=2)
-    zm = zones or FakeZoneManager()
+    mx = mixer or FakeMixer()
     cancel = asyncio.Event()
     pause = asyncio.Event()
-    return FocusMode(cfg, zm, cancel, pause), zm, cancel
+    return FocusMode(cfg, mx, cancel, pause), mx, cancel
 
 
 def test_initial_phase_is_work():
@@ -84,15 +95,17 @@ def test_rope_brightness_midpoint():
 
 
 def test_apply_work_lighting():
-    mode, zm, _ = make_focus()
+    mode, mx, _ = make_focus()
     mode._apply_work_lighting(progress=0.0)
     # Monitor should get cool white
-    monitor_calls = [(z, c) for z, c in zm.calls if z == "monitor"]
-    assert len(monitor_calls) == 1
-    assert monitor_calls[0][1] == ColorState(r=255, g=255, b=255, brightness=100)
+    monitor_subs = [(s, z, c, p) for s, z, c, p in mx.submissions if z == "monitor"]
+    assert len(monitor_subs) == 1
+    assert monitor_subs[0][2] == ColorState(r=255, g=255, b=255, brightness=100)
     # Floor and bedroom should be off
-    floor_calls = [(z, c) for z, c in zm.calls if z == "floor"]
-    assert floor_calls[0][1] == ColorState(r=0, g=0, b=0, brightness=0)
+    floor_subs = [(s, z, c, p) for s, z, c, p in mx.submissions if z == "floor"]
+    assert floor_subs[0][2] == ColorState(r=0, g=0, b=0, brightness=0)
     # Ropes should be at dim brightness
-    rope_calls = [(z, c) for z, c in zm.calls if z == "wall_left"]
-    assert rope_calls[0][1].brightness == 10
+    rope_subs = [(s, z, c, p) for s, z, c, p in mx.submissions if z == "wall_left"]
+    assert rope_subs[0][2].brightness == 10
+    # All submissions should be priority 1
+    assert all(p == 1 for _, _, _, p in mx.submissions)

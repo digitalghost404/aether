@@ -68,13 +68,13 @@ class DJMode:
     def __init__(
         self,
         config: PartyConfig,
-        zones,
+        mixer,
         mqtt,
         cancel: asyncio.Event,
         pause: asyncio.Event,
     ):
         self._config = config
-        self._zones = zones
+        self._mixer = mixer
         self._mqtt = mqtt
         self._cancel = cancel
         self._pause = pause
@@ -100,12 +100,14 @@ class DJMode:
     def _apply_base_color(self, r: int, g: int, b: int, brightness: int = 80) -> None:
         color = ColorState(r=r, g=g, b=b, brightness=brightness)
         for zone in ("wall_left", "wall_right", "monitor", "bedroom"):
-            self._zones.set_zone(zone, color)
+            self._mixer.submit("party", zone, color, priority=1)
+        self._mixer.resolve()
 
     def _apply_accent(self, brightness: int) -> None:
         r, g, b = self._current_base_color
         accent = ColorState(r=r, g=g, b=b, brightness=brightness)
-        self._zones.set_zone(self._config.accent_zone, accent)
+        self._mixer.submit("party", self._config.accent_zone, accent, priority=1)
+        self._mixer.resolve()
 
     async def run(self) -> None:
         proc = None
@@ -171,6 +173,8 @@ class DJMode:
                     self._apply_base_color(r, g, b)
 
         finally:
+            self._mixer.release_all("party")
+            self._mixer.resolve()
             if proc and proc.poll() is None:
                 proc.terminate()
                 proc.wait()

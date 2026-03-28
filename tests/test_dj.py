@@ -6,16 +6,28 @@ from aether.modes.dj import DJMode, BeatAnalyzer
 from aether.config import PartyConfig
 
 
-class FakeZoneManager:
+class FakeMixer:
     def __init__(self):
-        self.calls: list[tuple[str, ColorState]] = []
-        self.paused = False
+        self.submissions: list[tuple[str, str, ColorState, int]] = []
 
-    def set_zone(self, zone: str, state: ColorState) -> None:
-        self.calls.append((zone, state))
+    def submit(self, source: str, zone: str, color: ColorState, priority: int, ttl_sec: float | None = None) -> None:
+        self.submissions.append((source, zone, color, priority))
 
-    def get(self, zone: str) -> ColorState:
-        return ColorState(r=128, g=128, b=128, brightness=50)
+    def submit_all(self, source: str, color: ColorState, priority: int, ttl_sec: float | None = None) -> None:
+        for zone in ("wall_left", "wall_right", "monitor", "floor", "bedroom"):
+            self.submit(source, zone, color, priority)
+
+    def release(self, source: str, zone: str) -> None:
+        pass
+
+    def release_all(self, source: str) -> None:
+        pass
+
+    def resolve(self) -> None:
+        pass
+
+    def get_active_claims(self):
+        return {}
 
 
 class FakeMqtt:

@@ -5,16 +5,28 @@ from aether.modes.sleep import SleepMode, SleepStage
 from aether.config import SleepConfig
 
 
-class FakeZoneManager:
+class FakeMixer:
     def __init__(self):
-        self.calls: list[tuple[str, ColorState]] = []
-        self.paused = False
+        self.submissions: list[tuple[str, str, ColorState, int]] = []
 
-    def set_zone(self, zone: str, state: ColorState) -> None:
-        self.calls.append((zone, state))
+    def submit(self, source: str, zone: str, color: ColorState, priority: int, ttl_sec: float | None = None) -> None:
+        self.submissions.append((source, zone, color, priority))
 
-    def get(self, zone: str) -> ColorState:
-        return ColorState(r=255, g=255, b=255, brightness=100)
+    def submit_all(self, source: str, color: ColorState, priority: int, ttl_sec: float | None = None) -> None:
+        for zone in ("wall_left", "wall_right", "monitor", "floor", "bedroom"):
+            self.submit(source, zone, color, priority)
+
+    def release(self, source: str, zone: str) -> None:
+        pass
+
+    def release_all(self, source: str) -> None:
+        pass
+
+    def resolve(self) -> None:
+        pass
+
+    def get_active_claims(self):
+        return {}
 
 
 class FakeMqtt:
@@ -27,11 +39,11 @@ class FakeMqtt:
 
 def make_sleep(duration_min=1):
     cfg = SleepConfig(total_duration_min=duration_min, bedroom_final_color=[200, 100, 30], bedroom_final_brightness=5)
-    zm = FakeZoneManager()
+    mx = FakeMixer()
     mqtt = FakeMqtt()
     cancel = asyncio.Event()
     pause = asyncio.Event()
-    return SleepMode(cfg, zm, mqtt, cancel, pause), zm, mqtt, cancel
+    return SleepMode(cfg, mx, mqtt, cancel, pause), mx, mqtt, cancel
 
 
 def test_initial_stage():
@@ -58,7 +70,7 @@ def test_stage_time_fractions_sum_to_one():
 
 @pytest.mark.asyncio
 async def test_cancel_stops_cascade():
-    mode, zm, _, cancel = make_sleep()
+    mode, mx, _, cancel = make_sleep()
     cancel.set()
     await mode.run()
     assert mode.stage == SleepStage.MONITOR
@@ -67,11 +79,11 @@ async def test_cancel_stops_cascade():
 @pytest.mark.asyncio
 async def test_full_cascade_reaches_complete():
     cfg = SleepConfig(total_duration_min=0, bedroom_final_color=[200, 100, 30], bedroom_final_brightness=5)
-    zm = FakeZoneManager()
+    mx = FakeMixer()
     mqtt = FakeMqtt()
     cancel = asyncio.Event()
     pause = asyncio.Event()
-    mode = SleepMode(cfg, zm, mqtt, cancel, pause)
+    mode = SleepMode(cfg, mx, mqtt, cancel, pause)
     mode.STAGE_FRACTIONS = {s: 0.0 for s in SleepStage if s != SleepStage.COMPLETE}
     mode.STAGE_FRACTIONS[SleepStage.COMPLETE] = 0.0
     await mode.run()

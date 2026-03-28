@@ -65,6 +65,10 @@ class FocusMode:
         off = ColorState(r=0, g=0, b=0, brightness=0)
         self._mixer.submit("focus", "floor", off, priority=1)
         self._mixer.submit("focus", "bedroom", off, priority=1)
+        desk = ColorState(r=cfg.desk_color[0], g=cfg.desk_color[1], b=cfg.desk_color[2], brightness=cfg.desk_brightness)
+        self._mixer.submit("focus", "desk", desk, priority=1)
+        tower = ColorState(r=0, g=0, b=0, brightness=cfg.tower_brightness)
+        self._mixer.submit("focus", "tower", tower, priority=1)
         self._mixer.resolve()
 
     def _apply_break_lighting(self) -> None:
@@ -83,6 +87,10 @@ class FocusMode:
         off = ColorState(r=0, g=0, b=0, brightness=0)
         self._mixer.submit("focus", "floor", off, priority=1)
         self._mixer.submit("focus", "bedroom", off, priority=1)
+        desk = ColorState(r=cfg.desk_color[0], g=cfg.desk_color[1], b=cfg.desk_color[2], brightness=cfg.desk_brightness)
+        self._mixer.submit("focus", "desk", desk, priority=1)
+        tower = ColorState(r=0, g=0, b=0, brightness=cfg.tower_brightness)
+        self._mixer.submit("focus", "tower", tower, priority=1)
         self._mixer.resolve()
 
     def _apply_long_break_lighting(self) -> None:
@@ -98,6 +106,10 @@ class FocusMode:
         off = ColorState(r=0, g=0, b=0, brightness=0)
         self._mixer.submit("focus", "floor", off, priority=1)
         self._mixer.submit("focus", "bedroom", off, priority=1)
+        desk = ColorState(r=cfg.desk_color[0], g=cfg.desk_color[1], b=cfg.desk_color[2], brightness=cfg.desk_brightness)
+        self._mixer.submit("focus", "desk", desk, priority=1)
+        tower = ColorState(r=0, g=0, b=0, brightness=cfg.tower_brightness)
+        self._mixer.submit("focus", "tower", tower, priority=1)
         self._mixer.resolve()
 
     async def _flash_ropes(self, count: int = 2) -> None:

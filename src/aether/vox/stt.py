@@ -1,8 +1,30 @@
 from __future__ import annotations
 
+import ctypes
 import sys
+from pathlib import Path
 
 import numpy as np
+
+# Pre-load pip-installed NVIDIA libraries so ctranslate2's dlopen can find them.
+# The pip nvidia-cublas-cu12 / nvidia-cudnn-cu12 packages install .so files under
+# site-packages/nvidia/*/lib/ which aren't on the default library search path.
+def _preload_nvidia_libs() -> None:
+    import importlib.util
+    spec = importlib.util.find_spec("nvidia")
+    if spec is None or spec.submodule_search_locations is None:
+        return
+    nvidia_root = Path(list(spec.submodule_search_locations)[0])
+    for lib_name in ["cublas/lib/libcublas.so.12", "cudnn/lib/libcudnn.so.9",
+                     "cuda_nvrtc/lib/libnvrtc.so.12"]:
+        lib_path = nvidia_root / lib_name
+        if lib_path.exists():
+            try:
+                ctypes.CDLL(str(lib_path), mode=ctypes.RTLD_GLOBAL)
+            except OSError:
+                pass
+
+_preload_nvidia_libs()
 
 
 class SpeechToText:

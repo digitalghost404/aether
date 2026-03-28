@@ -56,6 +56,14 @@ zones:
     govee_device: null
   bedroom:
     govee_device: null
+  # desk:                              # OpenRGB peripherals (requires openrgb-python + OpenRGB server)
+  #   openrgb_devices:
+  #     - "SteelSeries Apex 3 TKL"    # Run `openrgb --list-devices` for exact names
+  #     - "SteelSeries Rival 600"
+  # tower:
+  #   openrgb_devices:
+  #     - "Corsair Lighting Node"
+  #     - "XPG RAM"
 
 alerts:
   sentry:
@@ -72,6 +80,9 @@ focus:
   rope_dim_brightness: 10
   break_color: [180, 230, 180]       # green-warm for breaks
   break_brightness: 10
+  desk_color: [255, 223, 191]        # warm white ~4000K for keyboard/mouse
+  desk_brightness: 80
+  tower_brightness: 10               # dim case/RAM during focus
 
 party:
   accent_zone: floor                 # which light pulses on beats
@@ -79,6 +90,8 @@ party:
   accent_brightness_high: 100
   base_shift_beats: 8                # color change every N beats
   silence_timeout_sec: 120
+  tower_beat_sync: true              # tower (case/RAM) pulses with beats
+  desk_accent: true                  # desk follows base accent color
   palette:
     - [180, 50, 255]                 # purple
     - [255, 50, 150]                 # magenta
@@ -111,3 +124,9 @@ gestures:
   fist_hold_frames: 9
   cooldown_sec: 5
   feedback_flash: true
+
+# OpenRGB desk peripherals (optional — requires `pip install openrgb-python` and OpenRGB server)
+openrgb:
+  enabled: false                     # set to true after running `openrgb --list-devices`
+  host: localhost
+  port: 6820

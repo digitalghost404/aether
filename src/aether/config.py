@@ -65,6 +65,38 @@ class AlertsConfig(BaseModel):
     sentry: SentryAlertConfig = SentryAlertConfig()
 
 
+class FocusConfig(BaseModel):
+    work_min: int = 25
+    short_break_min: int = 5
+    long_break_min: int = 15
+    cycles: int = 4
+    work_color: list[int] = [255, 255, 255]
+    work_brightness: int = 100
+    rope_dim_brightness: int = 10
+    break_color: list[int] = [180, 230, 180]
+    break_brightness: int = 10
+
+
+class PartyConfig(BaseModel):
+    accent_zone: str = "floor"
+    accent_brightness_low: int = 40
+    accent_brightness_high: int = 100
+    base_shift_beats: int = 8
+    silence_timeout_sec: int = 120
+    palette: list[list[int]] = [
+        [180, 50, 255],
+        [255, 50, 150],
+        [50, 220, 220],
+        [255, 80, 50],
+    ]
+
+
+class SleepConfig(BaseModel):
+    total_duration_min: int = 5
+    bedroom_final_color: list[int] = [200, 100, 30]
+    bedroom_final_brightness: int = 5
+
+
 class AetherConfig(BaseModel):
     location: LocationConfig = LocationConfig()
     presence: PresenceConfig = PresenceConfig()
@@ -72,6 +104,9 @@ class AetherConfig(BaseModel):
     circadian: CircadianConfig = CircadianConfig()
     zones: dict[str, ZoneConfig] = {}
     alerts: AlertsConfig = AlertsConfig()
+    focus: FocusConfig = FocusConfig()
+    party: PartyConfig = PartyConfig()
+    sleep: SleepConfig = SleepConfig()
 
 
 def load_config(path: Path | None = None) -> AetherConfig:

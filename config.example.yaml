@@ -61,3 +61,31 @@ alerts:
   sentry:
     floor_flash_color: [255, 180, 0]
     floor_flash_count: 3
+
+focus:
+  work_min: 25
+  short_break_min: 5
+  long_break_min: 15
+  cycles: 4                          # 0 = indefinite
+  work_color: [255, 255, 255]        # cool white for monitor
+  work_brightness: 100
+  rope_dim_brightness: 10
+  break_color: [180, 230, 180]       # green-warm for breaks
+  break_brightness: 10
+
+party:
+  accent_zone: floor                 # which light pulses on beats
+  accent_brightness_low: 40
+  accent_brightness_high: 100
+  base_shift_beats: 8                # color change every N beats
+  silence_timeout_sec: 120
+  palette:
+    - [180, 50, 255]                 # purple
+    - [255, 50, 150]                 # magenta
+    - [50, 220, 220]                 # teal
+    - [255, 80, 50]                  # hot orange
+
+sleep:
+  total_duration_min: 5
+  bedroom_final_color: [200, 100, 30]
+  bedroom_final_brightness: 5

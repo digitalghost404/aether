@@ -9,11 +9,21 @@ from typing import Callable
 class State(Enum):
     PRESENT = "present"
     AWAY = "away"
+    FOCUS = "focus"
+    PARTY = "party"
+    SLEEP = "sleep"
 
 
 class Event(Enum):
     HUMAN_DETECTED = "human_detected"
     HUMAN_ABSENT = "human_absent"
+    FOCUS_START = "focus_start"
+    FOCUS_STOP = "focus_stop"
+    PARTY_START = "party_start"
+    PARTY_STOP = "party_stop"
+    SLEEP_START = "sleep_start"
+    SLEEP_CANCEL = "sleep_cancel"
+    SLEEP_COMPLETE = "sleep_complete"
 
 
 @dataclass(frozen=True)
@@ -25,8 +35,19 @@ class Transition:
 
 
 TRANSITION_TABLE: dict[tuple[State, Event], State] = {
+    # Phase 1
     (State.PRESENT, Event.HUMAN_ABSENT): State.AWAY,
     (State.AWAY, Event.HUMAN_DETECTED): State.PRESENT,
+    # Phase 2 — FOCUS
+    (State.PRESENT, Event.FOCUS_START): State.FOCUS,
+    (State.FOCUS, Event.FOCUS_STOP): State.PRESENT,
+    # Phase 2 — PARTY
+    (State.PRESENT, Event.PARTY_START): State.PARTY,
+    (State.PARTY, Event.PARTY_STOP): State.PRESENT,
+    # Phase 2 — SLEEP
+    (State.PRESENT, Event.SLEEP_START): State.SLEEP,
+    (State.SLEEP, Event.SLEEP_CANCEL): State.PRESENT,
+    (State.SLEEP, Event.SLEEP_COMPLETE): State.AWAY,
 }
 
 

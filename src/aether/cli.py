@@ -45,8 +45,33 @@ def run(config_path):
 async def _run_daemon(config):
     loop = asyncio.get_running_loop()
     mqtt = MqttClient(broker=config.mqtt.broker, port=config.mqtt.port)
-    adapter = GoveeAdapter(mqtt, config.zones, topic_prefix=config.mqtt.topic_prefix)
-    zones = ZoneManager(adapter)
+    govee_adapter = GoveeAdapter(mqtt, config.zones, topic_prefix=config.mqtt.topic_prefix)
+
+    # Build adapter routing: zone_name -> adapter instance
+    adapters: dict = {}
+    for zone_name, zone_cfg in config.zones.items():
+        if zone_cfg.govee_device is not None:
+            adapters[zone_name] = govee_adapter
+
+    # OpenRGB adapter (optional)
+    openrgb_adapter = None
+    if config.openrgb.enabled:
+        from aether.adapters.openrgb import OpenRGBAdapter
+
+        openrgb_adapter = OpenRGBAdapter(
+            mqtt, config.zones,
+            host=config.openrgb.host,
+            port=config.openrgb.port,
+            topic_prefix=config.mqtt.topic_prefix,
+            retry_attempts=config.openrgb.retry_attempts,
+            retry_delay_sec=config.openrgb.retry_delay_sec,
+        )
+        openrgb_adapter.connect()
+        for zone_name, zone_cfg in config.zones.items():
+            if zone_cfg.openrgb_devices:
+                adapters[zone_name] = openrgb_adapter
+
+    zones = ZoneManager(adapters)
     mixer = Mixer(zones)
     state_machine = StateMachine()
     circadian = CircadianEngine(config, mixer)
@@ -105,7 +130,7 @@ async def _run_daemon(config):
     presence = PresenceDetector(config.presence, state_machine, gesture_callback=gesture_cb)
     camera = Camera(config.presence.camera_index, config.presence.frame_interval_ms)
     sentry = SentryAlert(
-        adapter=adapter,
+        adapter=govee_adapter,
         floor_zone_name="floor",
         flash_color=config.alerts.sentry.floor_flash_color,
         flash_count=config.alerts.sentry.floor_flash_count,
@@ -145,8 +170,8 @@ async def _run_daemon(config):
     def handle_transition(t: Transition):
         nonlocal alert_task
         print(f"[aether] {t.from_state.value} → {t.to_state.value} ({t.reason})", file=sys.stderr)
-        adapter.publish_state(t.to_state.value)
-        adapter.publish_transition(t.from_state.value, t.to_state.value, t.reason)
+        govee_adapter.publish_state(t.to_state.value)
+        govee_adapter.publish_transition(t.from_state.value, t.to_state.value, t.reason)
         circadian.on_state_change(t.to_state)
 
         if t.to_state == State.PRESENT and t.from_state == State.AWAY:
@@ -215,7 +240,7 @@ async def _run_daemon(config):
 
     def update_with_mqtt(human_detected: bool, now: float | None = None):
         nonlocal alert_task
-        adapter.publish_presence(human_detected)
+        govee_adapter.publish_presence(human_detected)
 
         if human_detected and state_machine.state == State.AWAY:
             if alert_task is None or alert_task.done():
@@ -233,6 +258,9 @@ async def _run_daemon(config):
         mqtt.run(),
         mixer.run(tick_interval=config.mixer.tick_interval_sec),
     ]
+
+    if openrgb_adapter is not None:
+        coros.append(openrgb_adapter.run_reconnect_loop(on_reconnect=zones.flush_current))
 
     if config.vox.enabled:
         from aether.vox.mic import MicCapture
@@ -290,6 +318,8 @@ async def _run_daemon(config):
     finally:
         _stop_active_mode()
         camera.release()
+        if openrgb_adapter is not None:
+            openrgb_adapter.disconnect()
         mqtt.disconnect()
 
 

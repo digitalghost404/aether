@@ -3,9 +3,13 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from aether.lighting.ramp import ColorState
-from aether.lighting.zones import ZoneManager
+from aether.lighting.zones import ZONE_NAMES
+
+if TYPE_CHECKING:
+    from aether.lighting.zones import ZoneManager
 
 
 @dataclass
@@ -33,7 +37,7 @@ class Mixer:
         )
 
     def submit_all(self, source: str, color: ColorState, priority: int, ttl_sec: float | None = None) -> None:
-        for zone in ZoneManager.ZONE_NAMES:
+        for zone in ZONE_NAMES:
             self.submit(source, zone, color, priority, ttl_sec)
 
     def release(self, source: str, zone: str) -> None:
@@ -63,7 +67,7 @@ class Mixer:
     def resolve(self) -> None:
         if self._zones.paused:
             return
-        for zone in ZoneManager.ZONE_NAMES:
+        for zone in ZONE_NAMES:
             color = self._resolve_zone(zone)
             if color is not None:
                 if self._last_resolved.get(zone) != color:
@@ -72,7 +76,7 @@ class Mixer:
 
     def get_active_claims(self) -> dict[str, Claim]:
         result = {}
-        for zone in ZoneManager.ZONE_NAMES:
+        for zone in ZONE_NAMES:
             claims = self._claims.get(zone, {})
             if claims:
                 winner = min(claims.values(), key=lambda c: (c.priority, -c.created_at))

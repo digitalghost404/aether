@@ -14,7 +14,7 @@ class FakeMixer:
         self.submissions.append((source, zone, color, priority))
 
     def submit_all(self, source: str, color: ColorState, priority: int, ttl_sec: float | None = None) -> None:
-        for zone in ("wall_left", "wall_right", "monitor", "floor", "bedroom"):
+        for zone in ("wall_left", "wall_right", "monitor", "floor", "bedroom", "desk", "tower"):
             self.submit(source, zone, color, priority)
 
     def release(self, source: str, zone: str) -> None:
@@ -109,3 +109,34 @@ def test_apply_work_lighting():
     assert rope_subs[0][2].brightness == 10
     # All submissions should be priority 1
     assert all(p == 1 for _, _, _, p in mx.submissions)
+
+
+def test_apply_work_lighting_desk_warm_white():
+    cfg = FocusConfig(
+        work_min=1, short_break_min=1, long_break_min=1, cycles=2,
+        desk_color=[255, 223, 191], desk_brightness=80, tower_brightness=10,
+    )
+    mx = FakeMixer()
+    cancel = asyncio.Event()
+    pause = asyncio.Event()
+    mode = FocusMode(cfg, mx, cancel, pause)
+    mode._apply_work_lighting(progress=0.5)
+    desk_subs = [(s, z, c, p) for s, z, c, p in mx.submissions if z == "desk"]
+    assert len(desk_subs) == 1
+    assert desk_subs[0][2] == ColorState(r=255, g=223, b=191, brightness=80)
+    assert desk_subs[0][3] == 1
+
+
+def test_apply_work_lighting_tower_dim():
+    cfg = FocusConfig(
+        work_min=1, short_break_min=1, long_break_min=1, cycles=2,
+        desk_color=[255, 223, 191], desk_brightness=80, tower_brightness=10,
+    )
+    mx = FakeMixer()
+    cancel = asyncio.Event()
+    pause = asyncio.Event()
+    mode = FocusMode(cfg, mx, cancel, pause)
+    mode._apply_work_lighting(progress=0.5)
+    tower_subs = [(s, z, c, p) for s, z, c, p in mx.submissions if z == "tower"]
+    assert len(tower_subs) == 1
+    assert tower_subs[0][2].brightness == 10

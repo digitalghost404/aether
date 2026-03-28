@@ -25,6 +25,9 @@ dev = [
     "pytest",
     "pytest-asyncio",
 ]
+openrgb = [
+    "openrgb-python",
+]
 
 [project.scripts]
 aether = "aether.cli:cli"

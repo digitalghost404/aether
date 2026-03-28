@@ -78,21 +78,25 @@ class SleepMode:
         off = ColorState(r=0, g=0, b=0, brightness=0)
 
         try:
-            # Stage 1: Monitor fade to off
+            # Stage 1: Monitor + desk fade to off
             self.stage = SleepStage.MONITOR
             self._publish_stage(self.stage)
-            print("[aether] SLEEP: fading monitor", file=sys.stderr)
+            print("[aether] SLEEP: fading monitor + desk", file=sys.stderr)
             dur = total_sec * self.STAGE_FRACTIONS[SleepStage.MONITOR]
-            if await self._fade_zone("monitor", off, dur):
+            if await self._fade_zone("desk", off, dur * 0.5):
+                return
+            if await self._fade_zone("monitor", off, dur * 0.5):
                 return
 
-            # Stage 2: Ropes fade to off
+            # Stage 2: Ropes + tower fade to off
             self.stage = SleepStage.ROPES
             self._publish_stage(self.stage)
-            print("[aether] SLEEP: fading ropes", file=sys.stderr)
+            print("[aether] SLEEP: fading ropes + tower", file=sys.stderr)
             dur = total_sec * self.STAGE_FRACTIONS[SleepStage.ROPES]
             warm = ColorState(r=255, g=180, b=60, brightness=30)
             half = dur / 2
+            if await self._fade_zone("tower", off, half):
+                return
             if await self._fade_zone("wall_left", warm, half):
                 return
             if await self._fade_zone("wall_right", warm, half):

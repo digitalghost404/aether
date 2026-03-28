@@ -79,7 +79,7 @@ def test_submit_all_zones():
     white = ColorState(r=255, g=255, b=255, brightness=100)
     mixer.submit_all("circadian", white, priority=2)
     mixer.resolve()
-    assert len(zm.calls) == 5
+    assert len(zm.calls) == 7
 
 
 def test_ttl_expiry():

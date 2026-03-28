@@ -14,7 +14,7 @@ class FakeMixer:
         self.submissions.append((source, zone, color, priority))
 
     def submit_all(self, source: str, color: ColorState, priority: int, ttl_sec: float | None = None) -> None:
-        for zone in ("wall_left", "wall_right", "monitor", "floor", "bedroom"):
+        for zone in ("wall_left", "wall_right", "monitor", "floor", "bedroom", "desk", "tower"):
             self.submit(source, zone, color, priority)
 
     def release(self, source: str, zone: str) -> None:

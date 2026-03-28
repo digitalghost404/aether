@@ -80,7 +80,10 @@ class OpenRGBAdapter:
         if self._client is None:
             return
 
-        server_devices = {d.name: d for d in self._client.devices}
+        # Build name -> [devices] map (handles duplicate names like "ENE DRAM" x4)
+        server_devices: dict[str, list] = {}
+        for d in self._client.devices:
+            server_devices.setdefault(d.name, []).append(d)
         all_found = True
 
         for zone_name, zone_cfg in self._zones.items():
@@ -90,13 +93,14 @@ class OpenRGBAdapter:
 
             matched = []
             for dev_name in devices:
-                device = server_devices.get(dev_name)
-                if device is not None:
-                    matched.append(device)
-                    try:
-                        device.set_mode("direct")
-                    except Exception:
-                        pass  # some devices don't support Direct mode
+                dev_list = server_devices.get(dev_name, [])
+                if dev_list:
+                    for device in dev_list:
+                        matched.append(device)
+                        try:
+                            device.set_mode("direct")
+                        except Exception:
+                            pass  # some devices don't support Direct mode
                 else:
                     print(
                         f"[aether] OpenRGB device not found: {dev_name!r} (zone: {zone_name})",

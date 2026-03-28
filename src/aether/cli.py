@@ -12,7 +12,9 @@ from aether.state import StateMachine, State, Event, Transition
 from aether.vision.camera import Camera
 from aether.vision.presence import PresenceDetector
 from aether.lighting.circadian import CircadianEngine
+from aether.lighting.ramp import ColorState
 from aether.lighting.zones import ZoneManager
+from aether.mixer import Mixer
 from aether.adapters.mqtt import MqttClient
 from aether.adapters.govee import GoveeAdapter
 from aether.alerts.sentry import SentryAlert
@@ -45,9 +47,62 @@ async def _run_daemon(config):
     mqtt = MqttClient(broker=config.mqtt.broker, port=config.mqtt.port)
     adapter = GoveeAdapter(mqtt, config.zones, topic_prefix=config.mqtt.topic_prefix)
     zones = ZoneManager(adapter)
+    mixer = Mixer(zones)
     state_machine = StateMachine()
-    circadian = CircadianEngine(config, zones)
-    presence = PresenceDetector(config.presence, state_machine)
+    circadian = CircadianEngine(config, mixer)
+
+    # Gesture classifier (conditional — only if enabled and model available)
+    gesture_classifier = None
+    if config.gestures.enabled:
+        from aether.vision.gestures import GestureClassifier, Gesture
+        gesture_classifier = GestureClassifier(config.gestures)
+
+    def _on_gesture_landmarks(landmarks):
+        if gesture_classifier is None:
+            return
+        from aether.vision.gestures import Gesture
+        gesture = gesture_classifier.update(landmarks)
+        if gesture is None:
+            return
+        print(f"[aether] Gesture: {gesture.value}", file=sys.stderr)
+        if config.gestures.feedback_flash:
+            flash = ColorState(r=255, g=255, b=255, brightness=100)
+            mixer.submit("feedback", "floor", flash, priority=0, ttl_sec=1)
+            mixer.resolve()
+        from datetime import datetime, timezone
+        mqtt.publish("aether/gesture/last", {
+            "gesture": gesture.value,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }, retain=True)
+        # Map gesture to action
+        if gesture == Gesture.THUMBS_UP:
+            claims = mixer.get_active_claims()
+            for zone_name, claim in claims.items():
+                new_br = min(100, claim.color.brightness + 20)
+                new_color = ColorState(r=claim.color.r, g=claim.color.g, b=claim.color.b, brightness=new_br)
+                mixer.submit("gesture", zone_name, new_color, priority=0, ttl_sec=config.mixer.manual_ttl_sec)
+            mixer.resolve()
+        elif gesture == Gesture.THUMBS_DOWN:
+            claims = mixer.get_active_claims()
+            for zone_name, claim in claims.items():
+                new_br = max(0, claim.color.brightness - 20)
+                new_color = ColorState(r=claim.color.r, g=claim.color.g, b=claim.color.b, brightness=new_br)
+                mixer.submit("gesture", zone_name, new_color, priority=0, ttl_sec=config.mixer.manual_ttl_sec)
+            mixer.resolve()
+        elif gesture == Gesture.FIST:
+            if zones.paused:
+                loop.call_soon_threadsafe(
+                    _handle_mqtt_command_inner,
+                    f"{config.mqtt.topic_prefix}/control", "resume"
+                )
+            else:
+                loop.call_soon_threadsafe(
+                    _handle_mqtt_command_inner,
+                    f"{config.mqtt.topic_prefix}/control", "pause"
+                )
+
+    gesture_cb = _on_gesture_landmarks if gesture_classifier else None
+    presence = PresenceDetector(config.presence, state_machine, gesture_callback=gesture_cb)
     camera = Camera(config.presence.camera_index, config.presence.frame_interval_ms)
     sentry = SentryAlert(
         adapter=adapter,
@@ -105,15 +160,15 @@ async def _run_daemon(config):
             asyncio.ensure_future(circadian.run_return_ramp())
 
         if t.to_state == State.FOCUS:
-            focus = FocusMode(config.focus, zones, mode_cancel, mode_pause)
+            focus = FocusMode(config.focus, mixer, mode_cancel, mode_pause)
             _start_mode(focus.run())
 
         elif t.to_state == State.PARTY:
-            party = DJMode(config.party, zones, mqtt, mode_cancel, mode_pause)
+            party = DJMode(config.party, mixer, mqtt, mode_cancel, mode_pause)
             _start_mode(party.run())
 
         elif t.to_state == State.SLEEP:
-            sleep = SleepMode(config.sleep, zones, mqtt, mode_cancel, mode_pause)
+            sleep = SleepMode(config.sleep, mixer, mqtt, mode_cancel, mode_pause)
             _start_mode(sleep.run())
 
         elif t.to_state == State.AWAY and t.from_state == State.SLEEP:
@@ -172,12 +227,64 @@ async def _run_daemon(config):
 
     print("[aether] Daemon running. Press Ctrl+C to stop.", file=sys.stderr)
 
+    coros = [
+        camera.run(presence.process_frame),
+        circadian.run(),
+        mqtt.run(),
+        mixer.run(tick_interval=config.mixer.tick_interval_sec),
+    ]
+
+    if config.vox.enabled:
+        from aether.vox.mic import MicCapture
+        from aether.vox.wake import WakeWordDetector
+        from aether.vox.stt import SpeechToText
+        from aether.vox.intent import classify_intent
+        from aether.vox.handler import VoxHandler
+
+        async def _vox_pipeline():
+            mic = MicCapture(config.vox.mic_source)
+            if not await mic.start():
+                return
+            wake = WakeWordDetector(config.vox.wake_word)
+            if not wake.load():
+                mic.stop()
+                return
+            stt = SpeechToText(config.vox.whisper_model)
+            handler = VoxHandler(state_machine, mixer, mqtt, config)
+            print("[aether] VOX: pipeline ready", file=sys.stderr)
+            try:
+                while True:
+                    chunk = await mic.read_chunk()
+                    if chunk is None:
+                        break
+                    if wake.detect(chunk):
+                        print("[aether] VOX: wake word detected", file=sys.stderr)
+                        if config.vox.feedback_flash:
+                            flash = ColorState(r=255, g=255, b=255, brightness=100)
+                            mixer.submit("feedback", "floor", flash, priority=0, ttl_sec=1)
+                            mixer.resolve()
+                        audio = await mic.read_seconds(
+                            config.vox.command_timeout_sec,
+                            silence_timeout=config.vox.silence_timeout_sec,
+                        )
+                        if len(audio) == 0:
+                            continue
+                        text = await asyncio.to_thread(stt.transcribe, audio)
+                        if text is None:
+                            continue
+                        print(f"[aether] VOX: heard: {text!r}", file=sys.stderr)
+                        intent = classify_intent(text)
+                        if intent is None:
+                            print(f"[aether] VOX: no keyword match for {text!r}, skipping", file=sys.stderr)
+                            continue
+                        handler.execute(intent, text)
+            finally:
+                mic.stop()
+
+        coros.append(_vox_pipeline())
+
     try:
-        await asyncio.gather(
-            camera.run(presence.process_frame),
-            circadian.run(),
-            mqtt.run(),
-        )
+        await asyncio.gather(*coros)
     except KeyboardInterrupt:
         print("\n[aether] Shutting down...", file=sys.stderr)
     finally:
@@ -284,6 +391,56 @@ def resume(config_path):
     _publish_command(config.mqtt.broker, config.mqtt.port,
                      f"{config.mqtt.topic_prefix}/control", "resume")
     click.echo("Aether resumed.")
+
+
+@cli.command("vox-test")
+@click.option("--config", "config_path", type=click.Path(), default=None)
+def vox_test(config_path):
+    """Test the voice pipeline — prints wake word detections and transcriptions."""
+    from pathlib import Path
+    config = load_config(Path(config_path) if config_path else None)
+    asyncio.run(_vox_test(config))
+
+
+async def _vox_test(config):
+    from aether.vox.mic import MicCapture
+    from aether.vox.wake import WakeWordDetector
+    from aether.vox.stt import SpeechToText
+    from aether.vox.intent import classify_intent
+
+    mic = MicCapture(config.vox.mic_source)
+    if not await mic.start():
+        return
+    wake = WakeWordDetector(config.vox.wake_word)
+    if not wake.load():
+        mic.stop()
+        return
+    stt = SpeechToText(config.vox.whisper_model)
+    print("Listening for wake word... (Ctrl+C to stop)")
+    try:
+        while True:
+            chunk = await mic.read_chunk()
+            if chunk is None:
+                break
+            if wake.detect(chunk):
+                print(">>> Wake word detected! Recording command...")
+                audio = await mic.read_seconds(
+                    config.vox.command_timeout_sec,
+                    silence_timeout=config.vox.silence_timeout_sec,
+                )
+                if len(audio) == 0:
+                    print(">>> No audio captured")
+                    continue
+                text = await asyncio.to_thread(stt.transcribe, audio)
+                if text:
+                    intent = classify_intent(text)
+                    print(f">>> Heard: {text!r} → Intent: {intent}")
+                else:
+                    print(">>> Transcription failed")
+    except KeyboardInterrupt:
+        pass
+    finally:
+        mic.stop()
 
 
 @cli.command()

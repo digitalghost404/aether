@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import sys
 import time
@@ -92,6 +93,10 @@ class OpenRGBAdapter:
                 device = server_devices.get(dev_name)
                 if device is not None:
                     matched.append(device)
+                    try:
+                        device.set_mode("direct")
+                    except Exception:
+                        pass  # some devices don't support Direct mode
                 else:
                     print(
                         f"[aether] OpenRGB device not found: {dev_name!r} (zone: {zone_name})",
@@ -156,6 +161,29 @@ class OpenRGBAdapter:
             self._client = None
         self._connected = False
         self._device_map.clear()
+
+    async def run_reconnect_loop(self, on_reconnect=None, interval: float = 30.0) -> None:
+        """Background task: attempts to reconnect to OpenRGB server if disconnected."""
+        import aether.adapters.openrgb as _mod
+        while True:
+            await asyncio.sleep(interval)
+            if self._connected:
+                continue
+            if _mod.OpenRGBClient is None:
+                continue
+            try:
+                self._client = _mod.OpenRGBClient(self._host, self._port, name="aether")
+            except Exception:
+                continue
+            try:
+                self._map_devices()
+            except Exception:
+                self._client = None
+                continue
+            self._connected = True
+            print("[aether] OpenRGB reconnected", file=sys.stderr)
+            if on_reconnect:
+                on_reconnect()
 
     def _publish_status(self, status: str) -> None:
         self._mqtt.publish(

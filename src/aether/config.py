@@ -129,7 +129,7 @@ class GestureConfig(BaseModel):
 
 
 class OpenRGBConfig(BaseModel):
-    enabled: bool = True
+    enabled: bool = False
     host: str = "localhost"
     port: int = 6820
     retry_attempts: int = 3

@@ -49,7 +49,7 @@ def test_default_zones():
 
 def test_openrgb_config_defaults():
     cfg = OpenRGBConfig()
-    assert cfg.enabled is True
+    assert cfg.enabled is False
     assert cfg.host == "localhost"
     assert cfg.port == 6820
     assert cfg.retry_attempts == 3
@@ -86,4 +86,4 @@ def test_aether_config_has_openrgb():
     from aether.config import AetherConfig, OpenRGBConfig
     cfg = AetherConfig()
     assert isinstance(cfg.openrgb, OpenRGBConfig)
-    assert cfg.openrgb.enabled is True
+    assert cfg.openrgb.enabled is False

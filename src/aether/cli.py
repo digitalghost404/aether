@@ -259,6 +259,9 @@ async def _run_daemon(config):
         mixer.run(tick_interval=config.mixer.tick_interval_sec),
     ]
 
+    if openrgb_adapter is not None:
+        coros.append(openrgb_adapter.run_reconnect_loop(on_reconnect=zones.flush_current))
+
     if config.vox.enabled:
         from aether.vox.mic import MicCapture
         from aether.vox.wake import WakeWordDetector

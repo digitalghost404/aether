@@ -105,7 +105,7 @@ class MixerConfig(BaseModel):
 class VoxConfig(BaseModel):
     enabled: bool = True
     mic_source: str = "alsa_input.usb-Clip-on_USB_microphone_UM02-00.mono-fallback"
-    wake_word: str = "aether"
+    wake_word: str = "hey_jarvis"
     command_timeout_sec: int = 5
     silence_timeout_sec: float = 1.5
     whisper_model: str = "small"

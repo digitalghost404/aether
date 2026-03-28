@@ -97,7 +97,7 @@ mixer:
 vox:
   enabled: true
   mic_source: "alsa_input.usb-Clip-on_USB_microphone_UM02-00.mono-fallback"
-  wake_word: "aether"
+  wake_word: "hey_jarvis"
   command_timeout_sec: 5
   silence_timeout_sec: 1.5
   whisper_model: "small"

@@ -10,7 +10,7 @@ def test_mixer_config_defaults():
 def test_vox_config_defaults():
     cfg = VoxConfig()
     assert cfg.enabled is True
-    assert cfg.wake_word == "aether"
+    assert cfg.wake_word == "hey_jarvis"
     assert cfg.command_timeout_sec == 5
     assert cfg.silence_timeout_sec == 1.5
     assert cfg.whisper_model == "small"

@@ -14,10 +14,13 @@ class WakeWordDetector:
     def load(self) -> bool:
         try:
             from openwakeword.model import Model
-            self._model = Model(
-                wakeword_models=[self._wake_word],
-                inference_framework="onnx",
-            )
+            # Load default models — wake_word selects which model to check in detect()
+            self._model = Model()
+            available = list(self._model.models.keys())
+            if self._wake_word not in available:
+                print(f"[aether] VOX: wake word '{self._wake_word}' not in available models: {available}", file=sys.stderr)
+                print(f"[aether] VOX: using first available: {available[0]}", file=sys.stderr)
+                self._wake_word = available[0]
             print(f"[aether] VOX: wake word model loaded ({self._wake_word})", file=sys.stderr)
             return True
         except Exception as e:

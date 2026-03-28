@@ -181,7 +181,7 @@ class CircadianEngine:
             if self._state == State.AWAY:
                 nightlight = self._palettes.get("nightlight", ColorState(180, 140, 60, 5))
                 self._zones.set_all(nightlight)
-            elif self._sun is not None:
+            elif self._state == State.PRESENT and self._sun is not None:
                 now = datetime.now()
                 phase = compute_phase(now, self._sun)
                 target = phase_color(phase, self._palettes)

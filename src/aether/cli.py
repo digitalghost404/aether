@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 
 import click
 
 from aether.config import load_config
-from aether.state import StateMachine, State, Transition
+from aether.state import StateMachine, State, Event, Transition
 from aether.vision.camera import Camera
 from aether.vision.presence import PresenceDetector
 from aether.lighting.circadian import CircadianEngine
@@ -15,6 +16,9 @@ from aether.lighting.zones import ZoneManager
 from aether.adapters.mqtt import MqttClient
 from aether.adapters.govee import GoveeAdapter
 from aether.alerts.sentry import SentryAlert
+from aether.modes.focus import FocusMode
+from aether.modes.sleep import SleepMode
+from aether.modes.dj import DJMode
 
 
 @click.group()
@@ -52,6 +56,35 @@ async def _run_daemon(config):
     )
 
     alert_task = None
+    active_mode_task = None
+    mode_cancel = asyncio.Event()
+    mode_pause = asyncio.Event()
+
+    def _stop_active_mode():
+        nonlocal active_mode_task
+        if active_mode_task and not active_mode_task.done():
+            mode_cancel.set()
+            active_mode_task = None
+
+    def _start_mode(coro):
+        nonlocal active_mode_task
+        mode_cancel.clear()
+        active_mode_task = asyncio.ensure_future(coro)
+
+        async def _on_mode_done(task):
+            try:
+                await task
+            except Exception as e:
+                print(f"[aether] Mode error: {e}", file=sys.stderr)
+            if not mode_cancel.is_set():
+                if state_machine.state == State.FOCUS:
+                    state_machine.handle_event(Event.FOCUS_STOP)
+                elif state_machine.state == State.PARTY:
+                    state_machine.handle_event(Event.PARTY_STOP)
+                elif state_machine.state == State.SLEEP:
+                    state_machine.handle_event(Event.SLEEP_COMPLETE)
+
+        asyncio.ensure_future(_on_mode_done(active_mode_task))
 
     def handle_transition(t: Transition):
         nonlocal alert_task
@@ -63,9 +96,59 @@ async def _run_daemon(config):
         if t.to_state == State.PRESENT and t.from_state == State.AWAY:
             asyncio.ensure_future(circadian.run_return_ramp())
 
+        if t.to_state == State.PRESENT and t.from_state in (State.FOCUS, State.PARTY, State.SLEEP):
+            _stop_active_mode()
+            asyncio.ensure_future(circadian.run_return_ramp())
+
+        if t.to_state == State.FOCUS:
+            focus = FocusMode(config.focus, zones, mode_cancel, mode_pause)
+            _start_mode(focus.run())
+
+        elif t.to_state == State.PARTY:
+            party = DJMode(config.party, zones, mqtt, mode_cancel, mode_pause)
+            _start_mode(party.run())
+
+        elif t.to_state == State.SLEEP:
+            sleep = SleepMode(config.sleep, zones, mqtt, mode_cancel, mode_pause)
+            _start_mode(sleep.run())
+
+        elif t.to_state == State.AWAY and t.from_state == State.SLEEP:
+            _stop_active_mode()
+
     state_machine._on_transition = handle_transition
 
-    # Wrap presence to also publish MQTT + trigger sentry
+    def _handle_mqtt_command(topic: str, payload: str):
+        payload = payload.strip().strip('"')
+        if topic == f"{config.mqtt.topic_prefix}/mode/set":
+            if payload == "focus" and state_machine.state == State.PRESENT:
+                state_machine.handle_event(Event.FOCUS_START)
+            elif payload == "party" and state_machine.state == State.PRESENT:
+                state_machine.handle_event(Event.PARTY_START)
+            elif payload == "sleep" and state_machine.state == State.PRESENT:
+                state_machine.handle_event(Event.SLEEP_START)
+            elif payload == "focus_stop" and state_machine.state == State.FOCUS:
+                state_machine.handle_event(Event.FOCUS_STOP)
+            elif payload == "party_stop" and state_machine.state == State.PARTY:
+                state_machine.handle_event(Event.PARTY_STOP)
+            elif payload == "sleep_stop" and state_machine.state == State.SLEEP:
+                state_machine.handle_event(Event.SLEEP_CANCEL)
+        elif topic == f"{config.mqtt.topic_prefix}/control":
+            if payload == "pause":
+                zones.paused = True
+                mode_pause.set()
+                mqtt.publish(f"{config.mqtt.topic_prefix}/paused", json.dumps(True), retain=True)
+                print("[aether] Paused", file=sys.stderr)
+            elif payload == "resume":
+                zones.paused = False
+                mode_pause.clear()
+                zones.flush_current()
+                mqtt.publish(f"{config.mqtt.topic_prefix}/paused", json.dumps(False), retain=True)
+                print("[aether] Resumed", file=sys.stderr)
+
+    mqtt.on_message = _handle_mqtt_command
+    mqtt.subscribe(f"{config.mqtt.topic_prefix}/mode/set")
+    mqtt.subscribe(f"{config.mqtt.topic_prefix}/control")
+
     original_update = presence.tracker.update
 
     def update_with_mqtt(human_detected: bool, now: float | None = None):
@@ -91,14 +174,114 @@ async def _run_daemon(config):
     except KeyboardInterrupt:
         print("\n[aether] Shutting down...", file=sys.stderr)
     finally:
+        _stop_active_mode()
         camera.release()
         mqtt.disconnect()
 
 
+def _publish_command(broker: str, port: int, topic: str, payload: str):
+    import paho.mqtt.client as paho_mqtt
+
+    client = paho_mqtt.Client(paho_mqtt.CallbackAPIVersion.VERSION2)
+    client.connect(broker, port)
+    client.publish(topic, payload, qos=1)
+    client.disconnect()
+
+
+@cli.command()
+@click.option("--cycles", default=None, type=int, help="Number of Pomodoro cycles (0=indefinite)")
+@click.option("--work", default=None, type=int, help="Work period in minutes")
+@click.option("--break", "break_min", default=None, type=int, help="Short break in minutes")
+@click.option("--config", "config_path", type=click.Path(), default=None)
+def focus(cycles, work, break_min, config_path):
+    """Enter FOCUS mode (Pomodoro)."""
+    from pathlib import Path
+    config = load_config(Path(config_path) if config_path else None)
+    _publish_command(config.mqtt.broker, config.mqtt.port,
+                     f"{config.mqtt.topic_prefix}/mode/set", "focus")
+    click.echo("FOCUS mode activated.")
+
+
+@cli.command("focus-stop")
+@click.option("--config", "config_path", type=click.Path(), default=None)
+def focus_stop(config_path):
+    """Exit FOCUS mode."""
+    from pathlib import Path
+    config = load_config(Path(config_path) if config_path else None)
+    _publish_command(config.mqtt.broker, config.mqtt.port,
+                     f"{config.mqtt.topic_prefix}/mode/set", "focus_stop")
+    click.echo("FOCUS mode stopped.")
+
+
+@cli.command()
+@click.option("--config", "config_path", type=click.Path(), default=None)
+def party(config_path):
+    """Enter PARTY mode (DJ Lightshow)."""
+    from pathlib import Path
+    config = load_config(Path(config_path) if config_path else None)
+    _publish_command(config.mqtt.broker, config.mqtt.port,
+                     f"{config.mqtt.topic_prefix}/mode/set", "party")
+    click.echo("PARTY mode activated.")
+
+
+@cli.command("party-stop")
+@click.option("--config", "config_path", type=click.Path(), default=None)
+def party_stop(config_path):
+    """Exit PARTY mode."""
+    from pathlib import Path
+    config = load_config(Path(config_path) if config_path else None)
+    _publish_command(config.mqtt.broker, config.mqtt.port,
+                     f"{config.mqtt.topic_prefix}/mode/set", "party_stop")
+    click.echo("PARTY mode stopped.")
+
+
+@cli.command()
+@click.option("--config", "config_path", type=click.Path(), default=None)
+def sleep(config_path):
+    """Enter SLEEP mode (cascade shutdown)."""
+    from pathlib import Path
+    config = load_config(Path(config_path) if config_path else None)
+    _publish_command(config.mqtt.broker, config.mqtt.port,
+                     f"{config.mqtt.topic_prefix}/mode/set", "sleep")
+    click.echo("SLEEP mode activated.")
+
+
+@cli.command("sleep-stop")
+@click.option("--config", "config_path", type=click.Path(), default=None)
+def sleep_stop(config_path):
+    """Cancel SLEEP mode."""
+    from pathlib import Path
+    config = load_config(Path(config_path) if config_path else None)
+    _publish_command(config.mqtt.broker, config.mqtt.port,
+                     f"{config.mqtt.topic_prefix}/mode/set", "sleep_stop")
+    click.echo("SLEEP mode cancelled.")
+
+
+@cli.command()
+@click.option("--config", "config_path", type=click.Path(), default=None)
+def pause(config_path):
+    """Pause all light output."""
+    from pathlib import Path
+    config = load_config(Path(config_path) if config_path else None)
+    _publish_command(config.mqtt.broker, config.mqtt.port,
+                     f"{config.mqtt.topic_prefix}/control", "pause")
+    click.echo("Aether paused.")
+
+
+@cli.command()
+@click.option("--config", "config_path", type=click.Path(), default=None)
+def resume(config_path):
+    """Resume light output."""
+    from pathlib import Path
+    config = load_config(Path(config_path) if config_path else None)
+    _publish_command(config.mqtt.broker, config.mqtt.port,
+                     f"{config.mqtt.topic_prefix}/control", "resume")
+    click.echo("Aether resumed.")
+
+
 @cli.command()
 def status():
-    """Show current Aether state (reads from MQTT retained messages)."""
-    import json
+    """Show current Aether state."""
     import paho.mqtt.client as paho_mqtt
 
     results = {}
@@ -106,6 +289,10 @@ def status():
         "aether/state",
         "aether/presence/human",
         "aether/presence/last_seen",
+        "aether/paused",
+        "aether/focus/state",
+        "aether/focus/timer",
+        "aether/sleep/stage",
     ]
 
     def on_connect(client, userdata, flags, rc, properties=None):
@@ -139,6 +326,22 @@ def status():
     click.echo(f"State:     {results.get('aether/state', 'unknown')}")
     click.echo(f"Human:     {results.get('aether/presence/human', 'unknown')}")
     click.echo(f"Last seen: {results.get('aether/presence/last_seen', 'unknown')}")
+    click.echo(f"Paused:    {results.get('aether/paused', 'false')}")
+
+    focus_state = results.get("aether/focus/state")
+    if focus_state:
+        click.echo(f"Focus:     {focus_state}")
+    focus_timer = results.get("aether/focus/timer")
+    if focus_timer:
+        try:
+            timer = json.loads(focus_timer)
+            click.echo(f"  Timer:   {timer['remaining_sec']}s remaining (cycle {timer['cycle']}/{timer['total_cycles']})")
+        except Exception:
+            pass
+
+    sleep_stage = results.get("aether/sleep/stage")
+    if sleep_stage:
+        click.echo(f"Sleep:     {sleep_stage}")
 
 
 @cli.command()
@@ -165,7 +368,6 @@ def discover(config_path):
         click.echo("Is govee2mqtt running? (docker ps | grep govee2mqtt)", err=True)
         sys.exit(1)
 
-    # Filter to real light devices (skip BaseGroup and other non-lights)
     devices = [
         d for d in all_devices
         if d.get("sku", "").startswith("H") and d.get("name")
@@ -182,7 +384,6 @@ def discover(config_path):
         on_off = "ON" if state and state.get("on") else "OFF"
         click.echo(f"  {i}. {dev['name']} ({dev['sku']}) [{online}, {on_off}]")
 
-    # govee2mqtt uses colons in device IDs, but MQTT topics use them without colons
     def mqtt_device_id(raw_id: str) -> str:
         return raw_id.replace(":", "")
 
@@ -200,7 +401,6 @@ def discover(config_path):
                 break
             click.echo(f"  Invalid choice. Enter 1-{len(devices)} or 0 to skip.")
 
-    # Write back to config
     with open(config_file_path) as f:
         raw = yaml.safe_load(f) or {}
 

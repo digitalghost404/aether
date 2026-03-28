@@ -9,7 +9,7 @@ presence:
   camera_index: 0                # /dev/video index
   absence_timeout_sec: 10        # Seconds with no human before AWAY
   detection_confidence: 0.5      # MediaPipe min detection confidence (0.0-1.0)
-  frame_interval_ms: 333         # ~3fps — increase for lower CPU usage
+  frame_interval_ms: 100         # ~10fps — responsive gestures at ~6% CPU
 
 mqtt:
   broker: localhost

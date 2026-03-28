@@ -9,7 +9,7 @@ def test_load_example_config(tmp_path):
     config = load_config(example)
     assert config.presence.camera_index == 0
     assert config.presence.absence_timeout_sec == 10
-    assert config.presence.frame_interval_ms == 333
+    assert config.presence.frame_interval_ms == 100
     assert config.mqtt.broker == "localhost"
     assert config.mqtt.port == 1883
     assert config.circadian.return_ramp_sec == 8

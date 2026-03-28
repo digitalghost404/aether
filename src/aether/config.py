@@ -21,7 +21,7 @@ class PresenceConfig(BaseModel):
     camera_index: int = 0
     absence_timeout_sec: int = 10
     detection_confidence: float = 0.5
-    frame_interval_ms: int = 333
+    frame_interval_ms: int = 100
 
 
 class MqttConfig(BaseModel):

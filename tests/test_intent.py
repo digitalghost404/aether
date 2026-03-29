@@ -69,3 +69,36 @@ def test_unknown_returns_none():
 
 def test_party_mode_synonym():
     assert classify_intent("party mode") == Intent.MODE_PARTY
+
+def test_set_scene():
+    assert classify_intent("set scene sunrise") == Intent.SCENE_SET
+
+def test_switch_to_scene():
+    assert classify_intent("switch to neon tokyo") == Intent.SCENE_SET
+
+def test_random_scene():
+    assert classify_intent("random scene") == Intent.SCENE_RANDOM
+
+def test_pick_a_scene():
+    assert classify_intent("pick a scene") == Intent.SCENE_RANDOM
+
+def test_reset_scene():
+    assert classify_intent("reset") == Intent.SCENE_RESET
+
+def test_go_back_to_default():
+    assert classify_intent("go back to default") == Intent.SCENE_RESET
+
+def test_normal_resets_scene():
+    assert classify_intent("normal") == Intent.SCENE_RESET
+
+def test_what_scene():
+    assert classify_intent("what scene") == Intent.SCENE_QUERY
+
+def test_current_scene():
+    assert classify_intent("current scene") == Intent.SCENE_QUERY
+
+def test_stop_still_stops_mode():
+    assert classify_intent("stop") == Intent.MODE_STOP
+
+def test_set_scene_case_insensitive():
+    assert classify_intent("Set Scene Ember") == Intent.SCENE_SET

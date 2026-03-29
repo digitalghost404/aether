@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 import sys
 from datetime import datetime, timezone
 
@@ -9,11 +10,12 @@ from aether.vox.intent import Intent
 
 
 class VoxHandler:
-    def __init__(self, state_machine: StateMachine, mixer, mqtt, config):
+    def __init__(self, state_machine: StateMachine, mixer, mqtt, config, scene_engine=None):
         self._sm = state_machine
         self._mixer = mixer
         self._mqtt = mqtt
         self._config = config
+        self._scene_engine = scene_engine
 
     def execute(self, intent: Intent, text: str) -> None:
         print(f"[aether] VOX: intent={intent.value} text={text!r}", file=sys.stderr)
@@ -24,7 +26,15 @@ class VoxHandler:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }, retain=True)
 
-        if intent == Intent.MODE_FOCUS and self._sm.state == State.PRESENT:
+        if intent == Intent.SCENE_SET:
+            self._handle_scene_set(text)
+        elif intent == Intent.SCENE_RANDOM:
+            self._handle_scene_random()
+        elif intent == Intent.SCENE_RESET:
+            self._handle_scene_reset()
+        elif intent == Intent.SCENE_QUERY:
+            self._handle_scene_query()
+        elif intent == Intent.MODE_FOCUS and self._sm.state == State.PRESENT:
             self._sm.handle_event(Event.FOCUS_START)
         elif intent == Intent.MODE_FOCUS_STOP and self._sm.state == State.FOCUS:
             self._sm.handle_event(Event.FOCUS_STOP)
@@ -56,6 +66,77 @@ class VoxHandler:
         elif intent == Intent.LIGHTS_ON:
             self._mixer.release_all("voice")
             self._mixer.resolve()
+
+    def _handle_scene_set(self, text: str) -> None:
+        if self._scene_engine is None:
+            print("[aether] VOX: scene engine not available", file=sys.stderr)
+            return
+
+        scene_name = self._extract_scene_name(text)
+        if scene_name is None:
+            print(f"[aether] VOX: could not match scene name from {text!r}", file=sys.stderr)
+            return
+
+        import asyncio
+        asyncio.ensure_future(self._scene_engine.apply_scene(scene_name, manual=True))
+
+    def _handle_scene_random(self) -> None:
+        if self._scene_engine is None:
+            return
+
+        names = self._scene_engine.get_scene_names()
+        if not names:
+            return
+
+        name = random.choice(names)
+        import asyncio
+        asyncio.ensure_future(self._scene_engine.apply_scene(name, manual=True))
+
+    def _handle_scene_reset(self) -> None:
+        if self._scene_engine is None:
+            return
+        self._scene_engine.reset_to_circadian()
+
+    def _handle_scene_query(self) -> None:
+        if self._scene_engine is None:
+            return
+        active = self._scene_engine.active_scene or "none"
+        self._mqtt.publish("aether/scene/active", active, retain=True)
+
+    def _extract_scene_name(self, text: str) -> str | None:
+        if self._scene_engine is None:
+            return None
+
+        lower = text.lower().strip()
+        for prefix in ("set scene", "switch to"):
+            if prefix in lower:
+                idx = lower.index(prefix) + len(prefix)
+                lower = lower[idx:].strip()
+                break
+
+        if not lower:
+            return None
+
+        available = self._scene_engine.get_scene_names()
+
+        # Exact match
+        for name in available:
+            if name.lower() == lower:
+                return name
+
+        # Fuzzy: replace spaces with underscores
+        lower_underscore = lower.replace(" ", "_")
+        for name in available:
+            if name.lower() in lower_underscore or lower_underscore in name.lower():
+                return name
+
+        # Partial word match
+        for name in available:
+            name_words = name.lower().replace("_", " ").split()
+            if any(word in lower for word in name_words if len(word) > 2):
+                return name
+
+        return None
 
     def _stop_current_mode(self) -> None:
         if self._sm.state == State.FOCUS:

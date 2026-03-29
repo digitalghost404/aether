@@ -65,6 +65,14 @@ class GoveeSegmentAdapter:
     def _encode_rgb(r: int, g: int, b: int) -> int:
         return (r << 16) | (g << 8) | b
 
+    async def set_gradient_toggle(self, device_id: str, sku: str, on: bool = True) -> None:
+        """Enable or disable gradient/segment mode on a device."""
+        await self._send(device_id, sku, {
+            "type": "devices.capabilities.toggle",
+            "instance": "gradientToggle",
+            "value": 1 if on else 0,
+        })
+
     async def set_segments(
         self,
         device_id: str,

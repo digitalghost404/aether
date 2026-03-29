@@ -108,6 +108,8 @@ class SceneEngine:
                 )
 
                 if zone_scene.stops is not None:
+                    # Enable gradient mode for segmented colors
+                    await self._segment_adapter.set_gradient_toggle(device_id, sku, on=True)
                     seg_count = self._segment_counts.get(zone_name, 1)
                     segments = _quantize_segments(interpolate_stops(zone_scene.stops, seg_count))
                     await self._segment_adapter.set_segments(

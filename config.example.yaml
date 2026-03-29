@@ -22,7 +22,15 @@ circadian:
   return_ramp_sec: 8             # Compressed sunrise duration on return
   sunrise_offset_min: 0          # Shift sunrise ± minutes
   sunset_offset_min: 0           # Shift sunset ± minutes
-  palettes:
+  phase_scenes:                  # Map time phases to scene names
+    dawn: sunrise
+    morning: sunrise
+    midday: sunrise
+    golden_hour: golden
+    evening: purple_night
+    night: purple_night
+    nightlight: dim_amber
+  palettes:                      # Legacy fallback (used when no scenes defined)
     dawn:
       color: [255, 160, 50]
       brightness: 30
@@ -130,3 +138,218 @@ openrgb:
   enabled: false                     # set to true after running `openrgb --list-devices`
   host: localhost
   port: 6742
+
+# Govee Platform API (for per-segment gradient control in scenes)
+govee_api:
+  api_key: null                      # Set GOVEE_API_KEY env var or fill this in
+
+# Scene definitions — per-zone gradients and colors
+# stops: [[segment_idx, [r, g, b]], ...] — gradient for segmented Govee devices
+# color: [r, g, b] — single color for non-segmented or OpenRGB devices
+scenes:
+  sunrise:
+    wall_left:
+      brightness: 70
+      stops: [[0, [0, 220, 255]], [21, [0, 150, 180]]]
+    wall_right:
+      brightness: 70
+      stops: [[0, [255, 160, 50]], [21, [255, 120, 30]]]
+    monitor:
+      brightness: 70
+      stops: [[0, [255, 160, 50]], [14, [255, 120, 30]]]
+    floor:
+      brightness: 80
+      stops: [[0, [255, 255, 240]], [6, [255, 200, 120]]]
+    bedroom:
+      color: [255, 255, 240]
+      brightness: 60
+    desk:
+      color: [0, 200, 230]
+      brightness: 70
+    tower:
+      color: [0, 180, 220]
+      brightness: 50
+
+  purple_night:
+    wall_left:
+      brightness: 70
+      stops: [[0, [92, 0, 255]], [21, [80, 0, 220]]]
+    wall_right:
+      brightness: 70
+      stops: [[0, [92, 0, 255]], [21, [80, 0, 220]]]
+    monitor:
+      brightness: 70
+      stops: [[0, [80, 0, 220]], [14, [60, 0, 200]]]
+    floor:
+      brightness: 60
+      stops: [[0, [92, 0, 255]], [6, [60, 0, 180]]]
+    bedroom:
+      color: [80, 0, 200]
+      brightness: 40
+    desk:
+      color: [92, 0, 255]
+      brightness: 60
+    tower:
+      color: [80, 0, 220]
+      brightness: 50
+
+  deep_space:
+    wall_left:
+      brightness: 50
+      stops: [[0, [5, 5, 40]], [7, [200, 200, 255]], [10, [5, 5, 40]], [18, [150, 150, 220]], [21, [5, 5, 40]]]
+    wall_right:
+      brightness: 50
+      stops: [[0, [5, 5, 40]], [5, [150, 150, 220]], [8, [5, 5, 40]], [15, [200, 200, 255]], [21, [5, 5, 40]]]
+    monitor:
+      brightness: 40
+      stops: [[0, [10, 10, 60]], [14, [5, 5, 40]]]
+    floor:
+      brightness: 40
+      stops: [[0, [180, 180, 255]], [3, [10, 10, 50]], [6, [5, 5, 40]]]
+    bedroom:
+      color: [10, 10, 50]
+      brightness: 20
+    desk:
+      color: [20, 20, 80]
+      brightness: 40
+    tower:
+      color: [10, 10, 60]
+      brightness: 30
+
+  ember:
+    wall_left:
+      brightness: 60
+      stops: [[0, [180, 30, 0]], [10, [255, 120, 20]], [21, [120, 20, 0]]]
+    wall_right:
+      brightness: 60
+      stops: [[0, [120, 20, 0]], [10, [255, 100, 10]], [21, [180, 30, 0]]]
+    monitor:
+      brightness: 50
+      stops: [[0, [255, 100, 10]], [14, [180, 50, 0]]]
+    floor:
+      brightness: 60
+      stops: [[0, [255, 140, 30]], [3, [255, 80, 10]], [6, [120, 20, 0]]]
+    bedroom:
+      color: [200, 60, 10]
+      brightness: 30
+    desk:
+      color: [180, 40, 0]
+      brightness: 50
+    tower:
+      color: [120, 20, 0]
+      brightness: 40
+
+  forest:
+    wall_left:
+      brightness: 60
+      stops: [[0, [0, 180, 80]], [10, [80, 220, 40]], [21, [0, 150, 60]]]
+    wall_right:
+      brightness: 60
+      stops: [[0, [0, 160, 130]], [10, [0, 200, 100]], [21, [0, 140, 80]]]
+    monitor:
+      brightness: 50
+      stops: [[0, [40, 180, 80]], [14, [20, 140, 60]]]
+    floor:
+      brightness: 60
+      stops: [[0, [80, 200, 60]], [3, [40, 160, 80]], [6, [200, 160, 60]]]
+    bedroom:
+      color: [40, 140, 60]
+      brightness: 30
+    desk:
+      color: [0, 180, 80]
+      brightness: 50
+    tower:
+      color: [0, 120, 60]
+      brightness: 40
+
+  neon_tokyo:
+    wall_left:
+      brightness: 80
+      stops: [[0, [255, 20, 100]], [10, [180, 0, 200]], [21, [0, 100, 255]]]
+    wall_right:
+      brightness: 80
+      stops: [[0, [0, 100, 255]], [10, [180, 0, 200]], [21, [255, 20, 100]]]
+    monitor:
+      brightness: 70
+      stops: [[0, [255, 0, 120]], [14, [200, 0, 180]]]
+    floor:
+      brightness: 70
+      stops: [[0, [255, 20, 100]], [3, [200, 0, 200]], [6, [0, 80, 255]]]
+    bedroom:
+      color: [200, 0, 180]
+      brightness: 50
+    desk:
+      color: [255, 20, 100]
+      brightness: 70
+    tower:
+      color: [0, 80, 255]
+      brightness: 60
+
+  golden:
+    wall_left:
+      brightness: 70
+      stops: [[0, [255, 200, 50]], [21, [255, 160, 30]]]
+    wall_right:
+      brightness: 70
+      stops: [[0, [255, 180, 40]], [21, [255, 140, 20]]]
+    monitor:
+      brightness: 60
+      stops: [[0, [255, 190, 40]], [14, [255, 150, 20]]]
+    floor:
+      brightness: 70
+      stops: [[0, [255, 220, 80]], [6, [255, 160, 30]]]
+    bedroom:
+      color: [255, 180, 40]
+      brightness: 40
+    desk:
+      color: [255, 200, 60]
+      brightness: 60
+    tower:
+      color: [255, 160, 30]
+      brightness: 50
+
+  arctic:
+    wall_left:
+      brightness: 80
+      stops: [[0, [220, 240, 255]], [21, [150, 200, 255]]]
+    wall_right:
+      brightness: 80
+      stops: [[0, [200, 230, 255]], [21, [140, 190, 255]]]
+    monitor:
+      brightness: 70
+      stops: [[0, [200, 220, 255]], [14, [160, 200, 255]]]
+    floor:
+      brightness: 80
+      stops: [[0, [240, 250, 255]], [6, [180, 210, 255]]]
+    bedroom:
+      color: [200, 220, 255]
+      brightness: 50
+    desk:
+      color: [220, 240, 255]
+      brightness: 70
+    tower:
+      color: [180, 210, 255]
+      brightness: 50
+
+  dim_amber:
+    wall_left:
+      color: [180, 140, 60]
+      brightness: 5
+    wall_right:
+      color: [180, 140, 60]
+      brightness: 5
+    monitor:
+      color: [180, 140, 60]
+      brightness: 5
+    floor:
+      color: [180, 140, 60]
+      brightness: 5
+    bedroom:
+      color: [180, 140, 60]
+      brightness: 5
+    desk:
+      color: [180, 140, 60]
+      brightness: 5
+    tower:
+      color: [0, 0, 0]
+      brightness: 0

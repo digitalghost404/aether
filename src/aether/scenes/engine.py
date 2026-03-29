@@ -85,6 +85,10 @@ class SceneEngine:
         self._manual_override = False
         self._mqtt.publish("aether/scene/mode", json.dumps("circadian"), retain=True)
 
+    def invalidate(self) -> None:
+        """Clear cached active scene so the next circadian tick re-applies."""
+        self._active_scene = None
+
     async def apply_scene(self, name: str, *, manual: bool = False) -> None:
         if name not in self._scenes:
             print(f"[aether] Scene '{name}' not found, ignoring", file=sys.stderr)

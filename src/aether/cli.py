@@ -121,6 +121,8 @@ async def _run_daemon(config):
             flash = ColorState(r=255, g=255, b=255, brightness=100)
             mixer.submit("feedback", "floor", flash, priority=0, ttl_sec=1)
             mixer.resolve()
+            if scene_engine is not None:
+                scene_engine.invalidate()
         from datetime import datetime, timezone
         mqtt.publish("aether/gesture/last", {
             "gesture": gesture.value,
@@ -338,6 +340,8 @@ async def _run_daemon(config):
                             flash = ColorState(r=255, g=255, b=255, brightness=100)
                             mixer.submit("feedback", "floor", flash, priority=0, ttl_sec=1)
                             mixer.resolve()
+                            if scene_engine is not None:
+                                scene_engine.invalidate()
                         audio = await mic.read_seconds(
                             config.vox.command_timeout_sec,
                             silence_timeout=config.vox.silence_timeout_sec,

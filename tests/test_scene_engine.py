@@ -155,6 +155,25 @@ async def test_reset_to_circadian_clears_override(engine):
     assert engine._manual_override is False
 
 
+@pytest.mark.asyncio
+async def test_invalidate_allows_same_scene_reapply(engine, mock_segment_adapter):
+    """After invalidate(), apply_circadian_scene re-applies the same scene."""
+    await engine.apply_circadian_scene("dawn")
+    assert engine.active_scene == "sunrise"
+    mock_segment_adapter.reset_mock()
+
+    # Without invalidate, same phase is skipped
+    await engine.apply_circadian_scene("dawn")
+    mock_segment_adapter.set_segments.assert_not_called()
+
+    # After invalidate, same phase re-applies
+    engine.invalidate()
+    assert engine.active_scene is None
+    await engine.apply_circadian_scene("dawn")
+    assert engine.active_scene == "sunrise"
+    mock_segment_adapter.set_segments.assert_called()
+
+
 def test_get_scene_names(engine):
     names = engine.get_scene_names()
     assert "sunrise" in names

@@ -8,6 +8,13 @@ from aether.config import AetherConfig, SceneZoneConfig
 from aether.lighting.ramp import ColorState
 from aether.scenes.interpolate import interpolate_stops
 
+
+def _to_platform_id(device_id: str) -> str:
+    """Convert stripped device ID (10BDC9F082864183) to colon format (10:BD:C9:F0:82:86:41:83)."""
+    if ":" in device_id:
+        return device_id
+    return ":".join(device_id[i:i+2] for i in range(0, len(device_id), 2))
+
 if TYPE_CHECKING:
     from aether.adapters.govee_segment import GoveeSegmentAdapter
     from aether.mixer import Mixer
@@ -72,7 +79,7 @@ class SceneEngine:
             zone_cfg = zones_config.get(zone_name)
 
             if zone_cfg is not None and zone_cfg.govee_device is not None:
-                device_id = zone_cfg.govee_device
+                device_id = _to_platform_id(zone_cfg.govee_device)
                 sku = ZONE_SKUS.get(zone_name, "H6641")
 
                 if zone_scene.stops is not None:

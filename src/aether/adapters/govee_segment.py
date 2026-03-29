@@ -13,7 +13,7 @@ API_URL = "https://openapi.api.govee.com/router/api/v1/device/control"
 
 
 class GoveeSegmentAdapter:
-    def __init__(self, api_key: str, rate_limit: float = 0.1):
+    def __init__(self, api_key: str, rate_limit: float = 0.15):
         self._api_key = api_key
         self._rate_limit = rate_limit
         self._client = httpx.AsyncClient(

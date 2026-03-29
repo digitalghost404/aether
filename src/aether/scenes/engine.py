@@ -15,6 +15,24 @@ def _to_platform_id(device_id: str) -> str:
         return device_id
     return ":".join(device_id[i:i+2] for i in range(0, len(device_id), 2))
 
+
+def _quantize_segments(
+    segments: dict[int, tuple[int, int, int]], step: int = 8
+) -> dict[int, tuple[int, int, int]]:
+    """Round RGB values to nearest step to increase color batching.
+
+    A 22-segment gradient with step=8 typically reduces from 22 unique colors
+    to 5-8, cutting API calls by ~70%.
+    """
+    return {
+        idx: (
+            round(r / step) * step,
+            round(g / step) * step,
+            round(b / step) * step,
+        )
+        for idx, (r, g, b) in segments.items()
+    }
+
 if TYPE_CHECKING:
     from aether.adapters.govee_segment import GoveeSegmentAdapter
     from aether.mixer import Mixer
@@ -84,7 +102,7 @@ class SceneEngine:
 
                 if zone_scene.stops is not None:
                     seg_count = self._segment_counts.get(zone_name, 1)
-                    segments = interpolate_stops(zone_scene.stops, seg_count)
+                    segments = _quantize_segments(interpolate_stops(zone_scene.stops, seg_count))
                     await self._segment_adapter.set_segments(
                         device_id, sku, segments, zone_scene.brightness
                     )

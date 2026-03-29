@@ -17,7 +17,7 @@ def _to_platform_id(device_id: str) -> str:
 
 
 def _quantize_segments(
-    segments: dict[int, tuple[int, int, int]], step: int = 8
+    segments: dict[int, tuple[int, int, int]], step: int = 16
 ) -> dict[int, tuple[int, int, int]]:
     """Round RGB values to nearest step to increase color batching.
 
@@ -118,9 +118,6 @@ class SceneEngine:
                     await self._segment_adapter.set_color(
                         device_id, sku, color, zone_scene.brightness
                     )
-
-                # Pause between devices to avoid burst rate limiting
-                await asyncio.sleep(2.0)
 
             elif zone_cfg is not None and zone_cfg.openrgb_devices:
                 if zone_scene.color is not None:

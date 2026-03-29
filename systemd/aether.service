@@ -1,15 +1,16 @@
 [Unit]
 Description=Aether - Living Room Daemon
-After=mosquitto.service
-Wants=mosquitto.service
+After=mosquitto.service openrgb-server.service
+Wants=mosquitto.service openrgb-server.service
 
 [Service]
 Type=simple
-ExecStart=%h/projects/aether/.venv/bin/python -m aether run
+ExecStart=%h/projects/aether/.venv/bin/aether run --config %h/.config/aether/config.yaml
 WorkingDirectory=%h/projects/aether
 Restart=on-failure
-RestartSec=5
+RestartSec=10
 Environment=PYTHONUNBUFFERED=1
+Environment=GOVEE_API_KEY=65c5429a-cd8d-4e1a-a1d1-bbe19e303591
 
 [Install]
 WantedBy=default.target

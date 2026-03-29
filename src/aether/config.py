@@ -43,6 +43,27 @@ class PaletteEntry(BaseModel):
         return v
 
 
+class SceneZoneConfig(BaseModel):
+    color: list[int] | None = None
+    brightness: int = 100
+    stops: list[list] | None = None
+
+    @field_validator("color")
+    @classmethod
+    def validate_scene_color(cls, v: list[int] | None) -> list[int] | None:
+        if v is not None:
+            if len(v) != 3:
+                raise ValueError("Color must be [r, g, b]")
+            for c in v:
+                if not 0 <= c <= 255:
+                    raise ValueError(f"Color value {c} must be 0-255")
+        return v
+
+
+class GoveeApiConfig(BaseModel):
+    api_key: str | None = None
+
+
 class CircadianConfig(BaseModel):
     update_interval_sec: int = 1
     ramp_interval_ms: int = 100
@@ -50,6 +71,7 @@ class CircadianConfig(BaseModel):
     sunrise_offset_min: int = 0
     sunset_offset_min: int = 0
     palettes: dict[str, PaletteEntry] = {}
+    phase_scenes: dict[str, str] = {}
 
 
 class ZoneConfig(BaseModel):
@@ -150,6 +172,8 @@ class AetherConfig(BaseModel):
     vox: VoxConfig = VoxConfig()
     gestures: GestureConfig = GestureConfig()
     openrgb: OpenRGBConfig = OpenRGBConfig()
+    scenes: dict[str, dict[str, SceneZoneConfig]] = {}
+    govee_api: GoveeApiConfig = GoveeApiConfig()
 
 
 def load_config(path: Path | None = None) -> AetherConfig:

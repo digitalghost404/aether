@@ -87,3 +87,65 @@ def test_aether_config_has_openrgb():
     cfg = AetherConfig()
     assert isinstance(cfg.openrgb, OpenRGBConfig)
     assert cfg.openrgb.enabled is False
+
+
+from aether.config import SceneZoneConfig, GoveeApiConfig
+
+def test_scene_zone_config_with_stops():
+    zone = SceneZoneConfig(
+        brightness=70,
+        stops=[[0, [0, 220, 255]], [21, [0, 150, 180]]],
+    )
+    assert zone.brightness == 70
+    assert zone.stops[0] == [0, [0, 220, 255]]
+    assert zone.color is None
+
+def test_scene_zone_config_with_color():
+    zone = SceneZoneConfig(
+        color=[255, 255, 240],
+        brightness=60,
+    )
+    assert zone.color == [255, 255, 240]
+    assert zone.stops is None
+
+def test_govee_api_config_defaults():
+    cfg = GoveeApiConfig()
+    assert cfg.api_key is None
+
+def test_aether_config_with_scenes():
+    from aether.config import AetherConfig
+    raw = {
+        "scenes": {
+            "sunrise": {
+                "wall_left": {
+                    "brightness": 70,
+                    "stops": [[0, [0, 220, 255]], [21, [0, 150, 180]]],
+                },
+                "desk": {
+                    "color": [0, 200, 230],
+                    "brightness": 70,
+                },
+            },
+        },
+        "govee_api": {
+            "api_key": "test-key",
+        },
+    }
+    config = AetherConfig(**raw)
+    assert "sunrise" in config.scenes
+    assert config.scenes["sunrise"]["wall_left"].brightness == 70
+    assert config.scenes["sunrise"]["desk"].color == [0, 200, 230]
+    assert config.govee_api.api_key == "test-key"
+
+def test_circadian_config_phase_scenes():
+    from aether.config import CircadianConfig
+    cfg = CircadianConfig(
+        phase_scenes={"dawn": "sunrise", "night": "purple_night"},
+    )
+    assert cfg.phase_scenes["dawn"] == "sunrise"
+
+def test_aether_config_defaults_no_scenes():
+    from aether.config import AetherConfig
+    config = AetherConfig()
+    assert config.scenes == {}
+    assert config.govee_api.api_key is None

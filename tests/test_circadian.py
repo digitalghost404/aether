@@ -1,5 +1,6 @@
 from datetime import datetime, time, timezone, timedelta
 import pytest
+from unittest.mock import AsyncMock, MagicMock
 from aether.lighting.circadian import (
     SunTimes,
     compute_phase,
@@ -72,3 +73,55 @@ def test_fetch_sun_times_fallback():
     defaults = get_default_sun_times()
     assert defaults.sunrise.hour == 6
     assert defaults.sunset.hour == 19
+
+
+class FakeMixer:
+    def __init__(self):
+        self.calls = []
+
+    def submit_all(self, source, color, priority, ttl_sec=None):
+        self.calls.append(("submit_all", source, color, priority))
+
+    def resolve(self):
+        self.calls.append(("resolve",))
+
+
+def _make_config_with_scenes():
+    from aether.config import AetherConfig
+    return AetherConfig(**{
+        "circadian": {
+            "update_interval_sec": 1,
+            "phase_scenes": {
+                "dawn": "sunrise",
+                "morning": "sunrise",
+                "midday": "sunrise",
+                "golden_hour": "golden",
+                "evening": "purple_night",
+                "night": "purple_night",
+            },
+            "palettes": {
+                "dawn": {"color": [255, 160, 50], "brightness": 30},
+                "morning": {"color": [255, 240, 220], "brightness": 80},
+                "midday": {"color": [255, 255, 255], "brightness": 100},
+                "golden_hour": {"color": [255, 180, 60], "brightness": 70},
+                "evening": {"color": [80, 60, 180], "brightness": 40},
+                "night": {"color": [30, 20, 80], "brightness": 15},
+                "nightlight": {"color": [180, 140, 60], "brightness": 5},
+            },
+        },
+    })
+
+
+def test_circadian_engine_accepts_scene_engine():
+    config = _make_config_with_scenes()
+    mixer = FakeMixer()
+    scene_engine = AsyncMock()
+    engine = CircadianEngine(config, mixer, scene_engine=scene_engine)
+    assert engine._scene_engine is scene_engine
+
+
+def test_circadian_engine_works_without_scene_engine():
+    config = _make_config_with_scenes()
+    mixer = FakeMixer()
+    engine = CircadianEngine(config, mixer)
+    assert engine._scene_engine is None

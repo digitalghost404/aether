@@ -116,9 +116,10 @@ def palettes_from_config(config: AetherConfig) -> dict[str, ColorState]:
 
 
 class CircadianEngine:
-    def __init__(self, config: AetherConfig, mixer):
+    def __init__(self, config: AetherConfig, mixer, scene_engine=None):
         self._config = config
         self._mixer = mixer
+        self._scene_engine = scene_engine
         self._palettes = palettes_from_config(config)
         self._sun: SunTimes | None = None
         self._last_fetch_date: str | None = None
@@ -137,18 +138,39 @@ class CircadianEngine:
             self._sun = get_default_sun_times()
         self._last_fetch_date = today
 
+    async def _apply_phase(self, phase: str) -> None:
+        if self._scene_engine is not None:
+            await self._scene_engine.apply_circadian_scene(phase)
+        else:
+            target = phase_color(phase, self._palettes)
+            self._mixer.submit_all("circadian", target, priority=2)
+
     def on_state_change(self, new_state: State) -> None:
         self._state = new_state
         # Immediately apply lighting for new state (don't wait for next tick)
         if new_state == State.AWAY:
-            nightlight = self._palettes.get("nightlight", ColorState(180, 140, 60, 5))
-            self._mixer.submit_all("circadian", nightlight, priority=2)
-            self._mixer.resolve()
+            if self._scene_engine is not None:
+                import asyncio
+                asyncio.ensure_future(self._scene_engine.apply_scene("dim_amber"))
+            else:
+                nightlight = self._palettes.get("nightlight", ColorState(180, 140, 60, 5))
+                self._mixer.submit_all("circadian", nightlight, priority=2)
+                self._mixer.resolve()
 
     async def run_return_ramp(self) -> None:
         if self._sun is None:
             return
 
+        if self._scene_engine is not None:
+            now = datetime.now()
+            phase = compute_phase(now, self._sun)
+            self._scene_engine.reset_to_circadian()
+            await self._scene_engine.apply_scene(
+                self._config.circadian.phase_scenes.get(phase, "sunrise")
+            )
+            return
+
+        # Legacy palette-based ramp
         self._ramping = True
         nightlight = self._palettes.get("nightlight", ColorState(180, 140, 60, 5))
         now = datetime.now()
@@ -180,12 +202,12 @@ class CircadianEngine:
             await self._ensure_sun_times()
 
             if self._state == State.AWAY:
-                nightlight = self._palettes.get("nightlight", ColorState(180, 140, 60, 5))
-                self._mixer.submit_all("circadian", nightlight, priority=2)
+                if self._scene_engine is None:
+                    nightlight = self._palettes.get("nightlight", ColorState(180, 140, 60, 5))
+                    self._mixer.submit_all("circadian", nightlight, priority=2)
             elif self._state == State.PRESENT and self._sun is not None:
                 now = datetime.now()
                 phase = compute_phase(now, self._sun)
-                target = phase_color(phase, self._palettes)
-                self._mixer.submit_all("circadian", target, priority=2)
+                await self._apply_phase(phase)
 
             await asyncio.sleep(self._config.circadian.update_interval_sec)

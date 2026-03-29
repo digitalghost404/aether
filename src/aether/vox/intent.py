@@ -18,6 +18,10 @@ class Intent(Enum):
     COLOR_COOLER = "color_cooler"
     LIGHTS_OFF = "lights_off"
     LIGHTS_ON = "lights_on"
+    SCENE_SET = "scene_set"
+    SCENE_RANDOM = "scene_random"
+    SCENE_RESET = "scene_reset"
+    SCENE_QUERY = "scene_query"
 
 
 KEYWORD_TABLE: list[tuple[str, Intent]] = [
@@ -35,6 +39,17 @@ KEYWORD_TABLE: list[tuple[str, Intent]] = [
     ("dim", Intent.BRIGHTNESS_DOWN),
     ("warmer", Intent.COLOR_WARMER),
     ("cooler", Intent.COLOR_COOLER),
+    # Scene intents (before generic stop/cancel)
+    ("set scene", Intent.SCENE_SET),
+    ("switch to", Intent.SCENE_SET),
+    ("random scene", Intent.SCENE_RANDOM),
+    ("pick a scene", Intent.SCENE_RANDOM),
+    ("go back to default", Intent.SCENE_RESET),
+    ("what scene", Intent.SCENE_QUERY),
+    ("current scene", Intent.SCENE_QUERY),
+    ("normal", Intent.SCENE_RESET),
+    ("reset", Intent.SCENE_RESET),
+    # Generic mode controls (after scene-specific patterns)
     ("focus", Intent.MODE_FOCUS),
     ("party", Intent.MODE_PARTY),
     ("sleep", Intent.MODE_SLEEP),

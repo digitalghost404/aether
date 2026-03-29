@@ -90,6 +90,8 @@ class SceneEngine:
             print(f"[aether] Scene '{name}' not found, ignoring", file=sys.stderr)
             return
 
+        import asyncio
+
         scene_zones = self._scenes[name]
         zones_config = self._config.zones
 
@@ -99,6 +101,11 @@ class SceneEngine:
             if zone_cfg is not None and zone_cfg.govee_device is not None:
                 device_id = _to_platform_id(zone_cfg.govee_device)
                 sku = ZONE_SKUS.get(zone_name, "H6641")
+
+                # Set brightness first (one call)
+                await self._segment_adapter.set_brightness(
+                    device_id, sku, zone_scene.brightness
+                )
 
                 if zone_scene.stops is not None:
                     seg_count = self._segment_counts.get(zone_name, 1)
@@ -112,9 +119,8 @@ class SceneEngine:
                         device_id, sku, color, zone_scene.brightness
                     )
 
-                await self._segment_adapter.set_brightness(
-                    device_id, sku, zone_scene.brightness
-                )
+                # Pause between devices to avoid burst rate limiting
+                await asyncio.sleep(2.0)
 
             elif zone_cfg is not None and zone_cfg.openrgb_devices:
                 if zone_scene.color is not None:

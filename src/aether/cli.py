@@ -73,8 +73,35 @@ async def _run_daemon(config):
 
     zones = ZoneManager(adapters)
     mixer = Mixer(zones)
+
+    # Scene engine (Govee Platform API for segmented device control)
+    import os
+    scene_engine = None
+    govee_api_key = os.environ.get("GOVEE_API_KEY") or (
+        config.govee_api.api_key if config.govee_api.api_key else None
+    )
+
+    if config.scenes and govee_api_key:
+        from aether.adapters.govee_segment import GoveeSegmentAdapter
+        from aether.scenes.engine import SceneEngine
+
+        segment_adapter = GoveeSegmentAdapter(api_key=govee_api_key)
+        scene_engine = SceneEngine(
+            config=config,
+            segment_adapter=segment_adapter,
+            mixer=mixer,
+            mqtt=mqtt,
+        )
+        print("[aether] Scene engine initialized", file=sys.stderr)
+    elif config.scenes and not govee_api_key:
+        print(
+            "[aether] WARNING: Scenes defined but GOVEE_API_KEY not set. "
+            "Scene engine disabled — falling back to palette circadian.",
+            file=sys.stderr,
+        )
+
     state_machine = StateMachine()
-    circadian = CircadianEngine(config, mixer)
+    circadian = CircadianEngine(config, mixer, scene_engine=scene_engine)
 
     # Gesture classifier (conditional — only if enabled and model available)
     gesture_classifier = None
@@ -228,6 +255,25 @@ async def _run_daemon(config):
                 zones.flush_current()
                 mqtt.publish(f"{config.mqtt.topic_prefix}/paused", json.dumps(False), retain=True)
                 print("[aether] Resumed", file=sys.stderr)
+        elif topic == f"{config.mqtt.topic_prefix}/scene/set":
+            if scene_engine is not None:
+                try:
+                    cmd = json.loads(payload)
+                    action = cmd.get("action")
+                    if action == "set":
+                        name = cmd.get("name", "")
+                        asyncio.ensure_future(scene_engine.apply_scene(name, manual=True))
+                    elif action == "random":
+                        import random as _random
+                        names = scene_engine.get_scene_names()
+                        if names:
+                            asyncio.ensure_future(
+                                scene_engine.apply_scene(_random.choice(names), manual=True)
+                            )
+                    elif action == "reset":
+                        scene_engine.reset_to_circadian()
+                except json.JSONDecodeError:
+                    asyncio.ensure_future(scene_engine.apply_scene(payload, manual=True))
 
     def _handle_mqtt_command(topic: str, payload: str):
         loop.call_soon_threadsafe(_handle_mqtt_command_inner, topic, payload)
@@ -235,6 +281,7 @@ async def _run_daemon(config):
     mqtt.on_message = _handle_mqtt_command
     mqtt.subscribe(f"{config.mqtt.topic_prefix}/mode/set")
     mqtt.subscribe(f"{config.mqtt.topic_prefix}/control")
+    mqtt.subscribe(f"{config.mqtt.topic_prefix}/scene/set")
 
     original_update = presence.tracker.update
 
@@ -278,7 +325,7 @@ async def _run_daemon(config):
                 mic.stop()
                 return
             stt = SpeechToText(config.vox.whisper_model)
-            handler = VoxHandler(state_machine, mixer, mqtt, config)
+            handler = VoxHandler(state_machine, mixer, mqtt, config, scene_engine=scene_engine)
             print("[aether] VOX: pipeline ready", file=sys.stderr)
             try:
                 while True:
@@ -421,6 +468,43 @@ def resume(config_path):
     _publish_command(config.mqtt.broker, config.mqtt.port,
                      f"{config.mqtt.topic_prefix}/control", "resume")
     click.echo("Aether resumed.")
+
+
+@cli.command("scene")
+@click.argument("name", required=False)
+@click.option("--random", "use_random", is_flag=True, help="Apply a random scene")
+@click.option("--reset", "use_reset", is_flag=True, help="Reset to circadian default")
+@click.option("--list", "use_list", is_flag=True, help="List available scenes")
+@click.option("--config", "config_path", type=click.Path(), default=None)
+def scene(name, use_random, use_reset, use_list, config_path):
+    """Apply a lighting scene."""
+    from pathlib import Path
+    config = load_config(Path(config_path) if config_path else None)
+
+    if use_list:
+        if not config.scenes:
+            click.echo("No scenes defined in config.")
+            return
+        click.echo("Available scenes:")
+        for scene_name in sorted(config.scenes.keys()):
+            click.echo(f"  {scene_name}")
+        return
+
+    broker = config.mqtt.broker
+    port = config.mqtt.port
+    topic = f"{config.mqtt.topic_prefix}/scene/set"
+
+    if use_reset:
+        _publish_command(broker, port, topic, json.dumps({"action": "reset"}))
+        click.echo("Reset to circadian lighting.")
+    elif use_random:
+        _publish_command(broker, port, topic, json.dumps({"action": "random"}))
+        click.echo("Random scene applied.")
+    elif name:
+        _publish_command(broker, port, topic, json.dumps({"action": "set", "name": name}))
+        click.echo(f"Scene '{name}' applied.")
+    else:
+        click.echo("Specify a scene name, or use --random, --reset, or --list.")
 
 
 @cli.command("vox-test")

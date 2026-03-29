@@ -13,7 +13,7 @@ API_URL = "https://openapi.api.govee.com/router/api/v1/device/control"
 
 
 class GoveeSegmentAdapter:
-    def __init__(self, api_key: str, rate_limit: float = 0.15):
+    def __init__(self, api_key: str, rate_limit: float = 0.2):
         self._api_key = api_key
         self._rate_limit = rate_limit
         self._client = httpx.AsyncClient(
@@ -24,6 +24,7 @@ class GoveeSegmentAdapter:
             timeout=10,
         )
         self._last_request_time: float = 0
+        self._consecutive_429s: int = 0
 
     async def _rate_wait(self) -> None:
         if self._rate_limit <= 0:
@@ -45,12 +46,18 @@ class GoveeSegmentAdapter:
         }
         try:
             await self._rate_wait()
+            # Back off harder if we've been rate limited
+            if self._consecutive_429s > 0:
+                await asyncio.sleep(self._consecutive_429s * 0.5)
             resp = await self._client.post(API_URL, content=json.dumps(payload))
-            if resp.status_code != 200:
-                print(
-                    f"[aether] Govee API error {resp.status_code}: {resp.text}",
-                    file=sys.stderr,
-                )
+            if resp.status_code == 429:
+                self._consecutive_429s += 1
+                print(f"[aether] Govee API rate limited (backoff {self._consecutive_429s})", file=sys.stderr)
+            elif resp.status_code != 200:
+                self._consecutive_429s = 0
+                print(f"[aether] Govee API error {resp.status_code}: {resp.text}", file=sys.stderr)
+            else:
+                self._consecutive_429s = 0
         except Exception as e:
             print(f"[aether] Govee API request failed: {e}", file=sys.stderr)
 

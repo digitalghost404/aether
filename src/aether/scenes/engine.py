@@ -26,9 +26,9 @@ def _quantize_segments(
     """
     return {
         idx: (
-            round(r / step) * step,
-            round(g / step) * step,
-            round(b / step) * step,
+            min(255, round(r / step) * step),
+            min(255, round(g / step) * step),
+            min(255, round(b / step) * step),
         )
         for idx, (r, g, b) in segments.items()
     }

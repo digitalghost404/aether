@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aether"
+version = "0.1.0"
+description = "Room-scale presence-aware circadian lighting daemon"
+requires-python = ">=3.11"
+dependencies = [
+    "mediapipe>=0.10",
+    "opencv-python-headless",
+    "paho-mqtt>=2.0",
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+    "httpx",
+    "click",
+    "librosa",
+    "faster-whisper",
+    "openwakeword",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+]
+openrgb = [
+    "openrgb-python",
+]
+
+[project.scripts]
+aether = "aether.cli:cli"
